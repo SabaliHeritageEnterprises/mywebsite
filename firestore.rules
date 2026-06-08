@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// ApexTrade Firestore security rules.
+// These are enforced by Google's servers — the real "backend" permission layer.
+// Frontend hiding is cosmetic; THIS is what actually blocks unauthorized writes.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Admin OR super_admin — they share full management permissions.
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && myRole() in ['admin', 'super_admin'];
+    }
+
+    // The single bootstrap super-admin, identified by email.
+    function isSuperEmail() {
+      return request.auth.token.email == 'admin@apextrade.local';
+    }
+
+    // ── users ────────────────────────────────────────────────────
+    match /users/{uid} {
+      // A user can read their own doc; admins can read everyone.
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Self-registration only: you may create YOUR OWN doc, you must start at
+      // $0 and 'active', and you may NOT self-assign a privileged role
+      // (except admin@apextrade.local, which bootstraps super_admin).
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.balance == 0
+        && request.resource.data.status == 'active'
+        && (
+             request.resource.data.role == 'user'
+             || (request.resource.data.role == 'super_admin' && isSuperEmail())
+           );
+
+      // Admins may edit any field of any user (balance, role, status, name…).
+      // A normal owner may only update presence/profile fields — never their own
+      // role, balance, or status.
+      allow update: if signedIn() && (
+        isAdmin()
+        || (
+             request.auth.uid == uid
+             && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['displayName', 'online', 'lastActivity', 'ipAddress', 'device'])
+           )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ── activity (audit log) ─────────────────────────────────────
+    match /activity/{id} {
+      // Admins read everything; a user may read only their own events.
+      allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      // Failed-login events are written before auth succeeds, so they're allowed
+      // unauthenticated; every other event must be created by its own user.
+      allow create: if request.resource.data.type == 'failed_login'
+        || (signedIn() && request.resource.data.uid == request.auth.uid);
+
+      // Audit trail is immutable.
+      allow update, delete: if false;
+    }
+  }
+}

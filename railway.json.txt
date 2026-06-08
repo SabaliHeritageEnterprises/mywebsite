@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci && npx prisma generate --schema=apps/api/prisma/schema.prisma && cd apps/api && npm run build"
+  },
+  "deploy": {
+    "startCommand": "node apps/api/dist/main.js"
+  }
+}
