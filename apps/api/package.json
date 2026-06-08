@@ -4,7 +4,7 @@
   "private": true,
   "description": "ApexTrade backend — NestJS, Prisma, PostgreSQL, Redis",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "node dist/main.js",
     "dev": "nest start --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",
