@@ -6,7 +6,7 @@ WORKDIR /app
 # Install all dependencies (monorepo root + workspaces)
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json ./apps/api/package.json
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy full source
 COPY . .
@@ -16,8 +16,12 @@ COPY . .
 RUN cp apps/api/.env.example apps/api/.env 2>/dev/null || \
     echo "DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy" > apps/api/.env
 
-# Generate Prisma client and compile TypeScript
-RUN npm run build -w apps/api
+# Build with explicit error handling and dist verification
+RUN set -e && \
+    echo "Building @apex/api..." && \
+    npm run build -w apps/api && \
+    echo "Build complete. Checking dist folder..." && \
+    ls -la apps/api/dist/ || (echo "ERROR: dist folder not found!" && exit 1)
 
 # ---- Runtime stage ----
 FROM node:20-alpine AS runner
