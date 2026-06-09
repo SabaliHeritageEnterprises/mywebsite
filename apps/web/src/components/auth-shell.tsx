@@ -12,7 +12,7 @@ export function AuthShell({ title, subtitle, children }: {
           <span className="grid place-items-center h-9 w-9 rounded-lg bg-gold-gradient text-black">
             <TrendingUp size={20} />
           </span>
-          Apex<span className="text-gold">Trade</span>
+          Crypto<span className="text-gold">Coin</span>
         </Link>
         <div className="card p-8">
           <h1 className="text-2xl font-bold mb-1">{title}</h1>

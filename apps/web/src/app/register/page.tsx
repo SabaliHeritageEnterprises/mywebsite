@@ -51,7 +51,7 @@ export default function RegisterPage() {
         <div className="absolute inset-0 bg-hero-glow pointer-events-none" />
         <Link href="/" className="absolute top-8 left-16 flex items-center gap-2 font-bold text-lg">
           <span className="grid place-items-center h-8 w-8 rounded-lg bg-gold-gradient text-black"><TrendingUp size={18} /></span>
-          Apex<span className="text-gold">Trade</span>
+          Crypto<span className="text-gold">Coin</span>
         </Link>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="relative">
@@ -81,7 +81,7 @@ export default function RegisterPage() {
         {/* mobile logo */}
         <Link href="/" className="lg:hidden flex items-center gap-2 font-bold text-lg mb-10">
           <span className="grid place-items-center h-8 w-8 rounded-lg bg-gold-gradient text-black"><TrendingUp size={18} /></span>
-          Apex<span className="text-gold">Trade</span>
+          Crypto<span className="text-gold">Coin</span>
         </Link>
 
         <div className="w-full max-w-sm mx-auto">

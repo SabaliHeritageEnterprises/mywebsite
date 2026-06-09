@@ -35,7 +35,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthShell title="Welcome back" subtitle="Log in to your ApexTrade account">
+    <AuthShell title="Welcome back" subtitle="Log in to your CryptoCoin account">
       <form onSubmit={submit} className="space-y-4">
         <input className="input" type="email" placeholder="Email" value={email}
           onChange={(e) => setEmail(e.target.value)} required />

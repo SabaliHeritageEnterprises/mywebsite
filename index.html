@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ApexTrade — Crypto & Forex Trading Platform</title>
+<title>CryptoCoin — Crypto & Forex Trading Platform</title>
 <meta name="description" content="Trade crypto and forex with live charts, a pro terminal, and risk-free simulation. Single-file demo." />
 <style>
   :root{
@@ -179,7 +179,7 @@
     <main class="auth-form">
       <div class="inner">
         <a class="auth-mobile-logo" href="#/" onclick="closeAuth()"><span class="badge" style="display:grid;place-items:center;height:30px;width:30px;border-radius:8px;background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#000">▲</span>Apex<span class="gold">Trade</span></a>
-        <h2 class="auth-h" id="authTitle">Welcome to ApexTrade</h2>
+        <h2 class="auth-h" id="authTitle">Welcome to CryptoCoin</h2>
 
         <label class="auth-label">Email</label>
         <div class="auth-input-wrap">
@@ -195,7 +195,7 @@
 
         <label class="auth-check">
           <input type="checkbox" id="authAgree" checked/>
-          <span>By creating an account, I agree to ApexTrade's <a href="#" class="gold">Terms</a> &amp; <a href="#" class="gold">Privacy Notice</a>.</span>
+          <span>By creating an account, I agree to CryptoCoin's <a href="#" class="gold">Terms</a> &amp; <a href="#" class="gold">Privacy Notice</a>.</span>
         </label>
 
         <button class="auth-continue" id="authSubmit">Continue</button>
@@ -250,7 +250,7 @@
     appId: "1:321066533168:web:49c7c9c4fcfd67fdb148f5",
     measurementId: "G-Y43ZXNX8VD",
   };
-  const SUPER = 'admin@apextrade.local';
+  const SUPER = 'admin@CryptoCoin.local';
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -353,7 +353,7 @@
 
 <script>
 /* =========================================================================
-   ApexTrade — single-file demo
+   CryptoCoin — single-file demo
    Frontend-only: a simulated price engine + paper-trading, persisted to
    localStorage. No backend, no real funds. Mirrors the full monorepo build.
    ========================================================================= */
@@ -529,7 +529,7 @@ function viewHome(){
         <div class="faq-q">${f[0]}<span>⌄</span></div><div class="faq-a">${f[1]}</div></div>`).join('')}
   </div></section>
 
-  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} ApexTrade. All rights reserved.</div></div>`;
+  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} CryptoCoin. All rights reserved.</div></div>`;
 }
 
 function renderMovers(){
@@ -591,7 +591,7 @@ function viewMarkets(){
     </div>
     <div id="marketBody"></div>
   </div>
-  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} ApexTrade · Demo</div></div>`;
+  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} CryptoCoin · Demo</div></div>`;
 }
 function setMTab(t){ mState.tab=t; document.querySelectorAll('#mtabs .tab').forEach(b=>b.classList.toggle('active',b.textContent.toUpperCase()===t)); renderMarketBody(); }
 function filteredPairs(){
@@ -810,7 +810,7 @@ function viewDashboard(){
       <p class="badge-sim" style="margin-top:14px">Demo addresses for layout only. Once a deposit is confirmed, your balance is credited and shown on your Portfolio.</p>
     </div>
   </div>
-  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} ApexTrade. All rights reserved.</div></div>`;
+  <div class="footer"><div class="wrap">© ${new Date().getFullYear()} CryptoCoin. All rights reserved.</div></div>`;
 }
 function regDashboard(){
   const eq=document.getElementById('dEquity'); if(!eq)return;
@@ -862,7 +862,7 @@ function afterRender(){
 let authIsSignup=true;
 function openAuth(signup){
   authIsSignup=signup;
-  document.getElementById('authTitle').textContent=signup?'Welcome to ApexTrade':'Log in to ApexTrade';
+  document.getElementById('authTitle').textContent=signup?'Welcome to CryptoCoin':'Log in to CryptoCoin';
   document.getElementById('authSubmit').textContent='Continue';
   document.getElementById('authToggleText').textContent=signup?'Already have an account?':"Don't have an account?";
   document.getElementById('authToggle').textContent=signup?'Log in':'Sign up';
@@ -895,7 +895,7 @@ document.getElementById('authSubmit').onclick=async()=>{
     if(authIsSignup) await window.FB.register(email, pass, email.split('@')[0]);
     else await window.FB.login(email, pass);
     closeAuth();
-    toast(authIsSignup?'Account created — welcome to ApexTrade!':'Logged in');
+    toast(authIsSignup?'Account created — welcome to CryptoCoin!':'Logged in');
     // onAuthStateChanged → applyFbUser() renders the logged-in UI automatically.
   }catch(e){
     console.error('[FB] auth error:', e?.code, e?.message, e);
