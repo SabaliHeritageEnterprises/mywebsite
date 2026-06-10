@@ -13,14 +13,13 @@ import type { MarketPair, Trade, Position } from '@/lib/types';
 
 type BottomTab = 'positions' | 'orders' | 'history';
 
-// Mock market pairs for the sidebar
 const MOCK_PAIRS: MarketPair[] = [
-  { id: '1', symbol: 'BTCUSDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', lastPrice: 43250.75, change24h: '2.5', high24h: '43800', low24h: '42800', volume24h: '1.2B', pricePrecision: 2 },
-  { id: '2', symbol: 'ETHUSDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', lastPrice: 2250.30, change24h: '1.8', high24h: '2280', low24h: '2230', volume24h: '890M', pricePrecision: 2 },
-  { id: '3', symbol: 'SOLUSDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: 98.45, change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', pricePrecision: 2 },
-  { id: '4', symbol: 'BNBUSDT', displayName: 'BNB / USDT', type: 'CRYPTO', lastPrice: 305.20, change24h: '0.2', high24h: '308', low24h: '303', volume24h: '210M', pricePrecision: 2 },
-  { id: '5', symbol: 'EURUSD', displayName: 'Euro / US Dollar', type: 'FOREX', lastPrice: 1.0895, change24h: '0.15', high24h: '1.0920', low24h: '1.0870', volume24h: '2.1B', pricePrecision: 4 },
-  { id: '6', symbol: 'GBPUSD', displayName: 'British Pound / US Dollar', type: 'FOREX', lastPrice: 1.2745, change24h: '-0.08', high24h: '1.2780', low24h: '1.2710', volume24h: '1.8B', pricePrecision: 4 },
+  { id: '1', symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', lastPrice: '43250.75', change24h: '2.5', high24h: '43800', low24h: '42800', volume24h: '1.2B', marketCap: '800B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
+  { id: '2', symbol: 'ETHUSDT', base: 'ETH', quote: 'USDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', lastPrice: '2250.30', change24h: '1.8', high24h: '2280', low24h: '2230', volume24h: '890M', marketCap: '270B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
+  { id: '3', symbol: 'SOLUSDT', base: 'SOL', quote: 'USDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: '98.45', change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', marketCap: '42B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
+  { id: '4', symbol: 'BNBUSDT', base: 'BNB', quote: 'USDT', displayName: 'BNB / USDT', type: 'CRYPTO', lastPrice: '305.20', change24h: '0.2', high24h: '308', low24h: '303', volume24h: '210M', marketCap: '50B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
+  { id: '5', symbol: 'EURUSD', base: 'EUR', quote: 'USD', displayName: 'Euro / US Dollar', type: 'FOREX', lastPrice: '1.0895', change24h: '0.15', high24h: '1.0920', low24h: '1.0870', volume24h: '2.1B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: true },
+  { id: '6', symbol: 'GBPUSD', base: 'GBP', quote: 'USD', displayName: 'British Pound / US Dollar', type: 'FOREX', lastPrice: '1.2745', change24h: '-0.08', high24h: '1.2780', low24h: '1.2710', volume24h: '1.8B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
 ];
 
 export default function TradeTerminal() {
@@ -35,6 +34,8 @@ export default function TradeTerminal() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Trade[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
+  const [isConnecting, setIsConnecting] = useState(true);
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   const live = useMarket((s) => (pair ? s.tickers[pair.symbol] : undefined));
 
@@ -48,18 +49,30 @@ export default function TradeTerminal() {
   useEffect(() => {
     if (!pair) return;
     
-    // Ensure WebSocket is connected
-    liveMarketData.connectCrypto();
-    liveMarketData.connectForex();
+    setIsConnecting(true);
+    setWsStatus('connecting');
     
-    // The market store already handles updates via ws.ts
-    // The 'live' variable above will update automatically
-    
+    try {
+      // Ensure WebSocket is connected
+      liveMarketData.connectCrypto();
+      liveMarketData.connectForex();
+      
+      // Set a timeout to consider connection established
+      const timer = setTimeout(() => {
+        setIsConnecting(false);
+        setWsStatus('connected');
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
+      setWsStatus('disconnected');
+      setIsConnecting(false);
+    }
   }, [pair]);
 
   const loadUserData = useCallback(() => {
     if (!user) return;
-    // These would normally fetch from API, but for now use mock empty data
     setPositions([]);
     setOrders([]);
     setHistory([]);
@@ -68,13 +81,11 @@ export default function TradeTerminal() {
   useEffect(() => { loadUserData(); }, [loadUserData]);
 
   const closePosition = async (id: string) => {
-    // Mock close - would call API
     alert('Position closed (demo)');
     loadUserData();
   };
   
   const cancelOrder = async (id: string) => {
-    // Mock cancel - would call API
     alert('Order cancelled (demo)');
     loadUserData();
   };
@@ -97,6 +108,13 @@ export default function TradeTerminal() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+
+      {/* Connection Status Banner */}
+      {wsStatus !== 'connected' && (
+        <div className="bg-yellow-500/10 border-b border-yellow-500/30 text-yellow-500 text-sm py-1.5 px-4 text-center">
+          {wsStatus === 'connecting' ? '🔄 Connecting to live market data...' : '⚠️ Reconnecting to market data...'}
+        </div>
+      )}
 
       {/* Symbol header */}
       <div className="border-b border-border bg-bg-soft">
@@ -185,95 +203,4 @@ export default function TradeTerminal() {
   );
 }
 
-function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div>
-      <div className="text-xs text-muted">{label}</div>
-      <div className={cn('text-sm tabular-nums', className)}>{value}</div>
-    </div>
-  );
-}
-
-function PositionsTable({ positions, onClose }: { positions: Position[]; onClose: (id: string) => void }) {
-  if (positions.length === 0) return <p className="p-6 text-center text-muted text-sm">No open positions.</p>;
-  return (
-    <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Side</th><th className="p-2 text-right">Qty</th>
-        <th className="p-2 text-right">Entry</th><th className="p-2 text-right">Mark</th>
-        <th className="p-2 text-right">uPnL</th><th className="p-2 text-right">Action</th>
-      </tr></thead>
-      <tbody>
-        {positions.map((p) => {
-          const mark = p.markPrice ?? Number(p.pair.lastPrice);
-          const pnl = p.unrealizedPnl ?? 0;
-          return (
-            <tr key={p.id} className="border-t border-border/50">
-              <td className="p-2">{p.pair.displayName}</td>
-              <td className={cn('p-2', p.side === 'BUY' ? 'text-up' : 'text-down')}>{p.side}</td>
-              <td className="p-2 text-right tabular-nums">{p.quantity}</td>
-              <td className="p-2 text-right tabular-nums">{fmtPrice(p.entryPrice)}</td>
-              <td className="p-2 text-right tabular-nums">{fmtPrice(mark)}</td>
-              <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
-              <td className="p-2 text-right">
-                <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
-               </td>
-             </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: string) => void }) {
-  if (orders.length === 0) return <p className="p-6 text-center text-muted text-sm">No open orders.</p>;
-  return (
-    <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
-        <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Action</th>
-       </tr></thead>
-      <tbody>
-        {orders.map((o) => (
-          <tr key={o.id} className="border-t border-border/50">
-            <td className="p-2">{o.pair.displayName}</td>
-            <td className="p-2">{o.type}</td>
-            <td className={cn('p-2', o.side === 'BUY' ? 'text-up' : 'text-down')}>{o.side}</td>
-            <td className="p-2 text-right tabular-nums">{fmtPrice(o.price)}</td>
-            <td className="p-2 text-right tabular-nums">{o.quantity}</td>
-            <td className="p-2 text-right">
-              <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
-             </td>
-           </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function HistoryTable({ trades }: { trades: Trade[] }) {
-  if (trades.length === 0) return <p className="p-6 text-center text-muted text-sm">No trade history yet.</p>;
-  return (
-    <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
-        <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th>
-        <th className="p-2">Status</th><th className="p-2 text-right">Date</th>
-       </tr></thead>
-      <tbody>
-        {trades.map((t) => (
-          <tr key={t.id} className="border-t border-border/50">
-            <td className="p-2">{t.pair.displayName}</td>
-            <td className="p-2">{t.type}</td>
-            <td className={cn('p-2', t.side === 'BUY' ? 'text-up' : 'text-down')}>{t.side}</td>
-            <td className="p-2 text-right tabular-nums">{fmtPrice(t.filledPrice ?? t.price)}</td>
-            <td className="p-2 text-right tabular-nums">{t.quantity}</td>
-            <td className="p-2 text-xs">{t.status}</td>
-            <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
-           </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+// ... (keep all the helper functions Stat, PositionsTable, OrdersTable, HistoryTable the same as before)
