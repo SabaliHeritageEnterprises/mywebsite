@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { liveMarketData } from '@/lib/liveMarketData';
 import { fetchAllTickers, convertToMarketPairs } from '@/lib/coinlore';
 import { api } from '@/lib/api';
+import type { MarketPair } from '@/lib/types';
 
 type Ticker = {
   symbol: string;

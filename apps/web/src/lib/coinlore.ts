@@ -1,4 +1,6 @@
 // CoinLore API - Free, no API key required
+import type { MarketPair } from '@/lib/types';
+
 const COINLORE_URL = 'https://api.coinlore.net/api';
 
 export type CoinLoreTicker = {
