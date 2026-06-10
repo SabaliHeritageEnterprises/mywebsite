@@ -1,91 +1,126 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter }redirect
 import { Navbar } from '@/components/navbar';
 import { TradingViewChart } from '@/components/trading-view-chart';
 import { OrderPanel } from '@/components/order-panel';
 import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
-import { liveMarketData } from '@/lib/liveMarketData';
 import { fmtPrice, fmtChange, cn } from '@/lib/utils';
 import type { MarketPair, Trade, Position } from '@/lib/types';
 
 type BottomTab = 'positions' | 'orders' | 'history';
 
-const MOCK_PAIRS: MarketPair[] = [
-  // === TOP CRYPTO (Large Cap) ===
-  { id: '1', symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', lastPrice: '43250.75', change24h: '2.5', high24h: '43800', low24h: '42800', volume24h: '1.2B', marketCap: '800B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
-  { id: '2', symbol: 'ETHUSDT', base: 'ETH', quote: 'USDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', lastPrice: '2250.30', change24h: '1.8', high24h: '2280', low24h: '2230', volume24h: '890M', marketCap: '270B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
-  { id: '3', symbol: 'BNBUSDT', base: 'BNB', quote: 'USDT', displayName: 'BNB / USDT', type: 'CRYPTO', lastPrice: '305.20', change24h: '0.2', high24h: '308', low24h: '303', volume24h: '210M', marketCap: '50B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
-  { id: '4', symbol: 'XRPUSDT', base: 'XRP', quote: 'USDT', displayName: 'Ripple / USDT', type: 'CRYPTO', lastPrice: '0.52', change24h: '-1.2', high24h: '0.53', low24h: '0.51', volume24h: '450M', marketCap: '28B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
-  { id: '5', symbol: 'SOLUSDT', base: 'SOL', quote: 'USDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: '98.45', change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', marketCap: '42B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
-
-  // === MID CAP CRYPTO ===
-  { id: '6', symbol: 'ADAUSDT', base: 'ADA', quote: 'USDT', displayName: 'Cardano / USDT', type: 'CRYPTO', lastPrice: '0.45', change24h: '0.8', high24h: '0.46', low24h: '0.44', volume24h: '280M', marketCap: '15B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
-  { id: '7', symbol: 'DOGEUSDT', base: 'DOGE', quote: 'USDT', displayName: 'Dogecoin / USDT', type: 'CRYPTO', lastPrice: '0.12', change24h: '5.2', high24h: '0.13', low24h: '0.11', volume24h: '680M', marketCap: '17B', pricePrecision: 4, qtyPrecision: 6, isTrending: true },
-  { id: '8', symbol: 'DOTUSDT', base: 'DOT', quote: 'USDT', displayName: 'Polkadot / USDT', type: 'CRYPTO', lastPrice: '7.85', change24h: '1.5', high24h: '8.00', low24h: '7.70', volume24h: '150M', marketCap: '9.5B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
-  { id: '9', symbol: 'LINKUSDT', base: 'LINK', quote: 'USDT', displayName: 'Chainlink / USDT', type: 'CRYPTO', lastPrice: '15.30', change24h: '3.2', high24h: '15.80', low24h: '14.90', volume24h: '220M', marketCap: '8.5B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
-  { id: '10', symbol: 'AVAXUSDT', base: 'AVAX', quote: 'USDT', displayName: 'Avalanche / USDT', type: 'CRYPTO', lastPrice: '35.20', change24h: '-2.1', high24h: '36.00', low24h: '34.50', volume24h: '190M', marketCap: '13B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
-
-  // === SMALL CAP ===
-  { id: '11', symbol: 'MATICUSDT', base: 'MATIC', quote: 'USDT', displayName: 'Polygon / USDT', type: 'CRYPTO', lastPrice: '0.68', change24h: '1.2', high24h: '0.69', low24h: '0.67', volume24h: '180M', marketCap: '6.5B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
-  { id: '12', symbol: 'SHIBUSDT', base: 'SHIB', quote: 'USDT', displayName: 'Shiba Inu / USDT', type: 'CRYPTO', lastPrice: '0.000023', change24h: '3.5', high24h: '0.000024', low24h: '0.000022', volume24h: '320M', marketCap: '13.5B', pricePrecision: 8, qtyPrecision: 6, isTrending: true },
-
-  // === FOREX ===
-  { id: '13', symbol: 'EURUSD', base: 'EUR', quote: 'USD', displayName: 'Euro / US Dollar', type: 'FOREX', lastPrice: '1.0895', change24h: '0.15', high24h: '1.0920', low24h: '1.0870', volume24h: '2.1B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: true },
-  { id: '14', symbol: 'GBPUSD', base: 'GBP', quote: 'USD', displayName: 'British Pound / US Dollar', type: 'FOREX', lastPrice: '1.2745', change24h: '-0.08', high24h: '1.2780', low24h: '1.2710', volume24h: '1.8B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  { id: '15', symbol: 'USDJPY', base: 'USD', quote: 'JPY', displayName: 'US Dollar / Japanese Yen', type: 'FOREX', lastPrice: '148.32', change24h: '0.22', high24h: '148.80', low24h: '147.90', volume24h: '1.5B', marketCap: '', pricePrecision: 2, qtyPrecision: 4, isTrending: true },
-  { id: '16', symbol: 'AUDUSD', base: 'AUD', quote: 'USD', displayName: 'Australian Dollar / US Dollar', type: 'FOREX', lastPrice: '0.6650', change24h: '-0.12', high24h: '0.6680', low24h: '0.6630', volume24h: '1.1B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  { id: '17', symbol: 'USDCAD', base: 'USD', quote: 'CAD', displayName: 'US Dollar / Canadian Dollar', type: 'FOREX', lastPrice: '1.3720', change24h: '0.08', high24h: '1.3750', low24h: '1.3690', volume24h: '980M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  { id: '18', symbol: 'USDCHF', base: 'USD', quote: 'CHF', displayName: 'US Dollar / Swiss Franc', type: 'FOREX', lastPrice: '0.9050', change24h: '-0.03', high24h: '0.9070', low24h: '0.9030', volume24h: '820M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  { id: '19', symbol: 'NZDUSD', base: 'NZD', quote: 'USD', displayName: 'New Zealand Dollar / US Dollar', type: 'FOREX', lastPrice: '0.6120', change24h: '-0.05', high24h: '0.6150', low24h: '0.6100', volume24h: '750M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-];
+// CoinLore API - Real data for ALL pairs
+const COINLORE_URL = 'https://api.coinlore.net/api';
 
 export default function TradeTerminal() {
   const params = useParams();
   const router = useRouter();
   const symbol = String(params.symbol).toUpperCase();
   const { user } = useAuth();
+  const { tickers, isLoading: marketLoading } = useMarket();
 
-  const [pairs] = useState<MarketPair[]>(MOCK_PAIRS);
+  const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [pair, setPair] = useState<MarketPair | null>(null);
   const [tab, setTab] = useState<BottomTab>('positions');
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Trade[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
-  const [isConnecting, setIsConnecting] = useState(true);
-  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [isLoading, setIsLoading] = useState(true);
+  const [realPrices, setRealPrices] = useState<Record<string, { price: number; change: number; high: number; low: number; volume: number }>>({});
 
-  const live = useMarket((s) => (pair ? s.tickers[pair.symbol] : undefined));
-
+  // Fetch real prices for ALL pairs from CoinLore API
   useEffect(() => {
-    const found = pairs.find(p => p.symbol === symbol);
+    const fetchAllRealData = async () => {
+      try {
+        const response = await fetch(`${COINLORE_URL}/tickers/?limit=100`);
+        const data = await response.json();
+        
+        if (data.data && Array.isArray(data.data)) {
+          const pricesMap: Record<string, { price: number; change: number; high: number; low: number; volume: number }> = {};
+          const marketPairs: MarketPair[] = [];
+          
+          data.data.forEach((coin: any) => {
+            const price = parseFloat(coin.price_usd);
+            const change = parseFloat(coin.percent_change_24h);
+            const high = price * 1.02;
+            const low = price * 0.98;
+            const volume = parseFloat(coin.volume24);
+            
+            // Store in map for quick lookup
+            pricesMap[coin.symbol] = { price, change, high, low, volume };
+            pricesMap[coin.symbol + 'USD'] = { price, change, high, low, volume };
+            
+            // Create market pair
+            marketPairs.push({
+              id: coin.id,
+              symbol: coin.symbol,
+              base: coin.symbol,
+              quote: 'USD',
+              displayName: coin.name + ' / USD',
+              type: 'CRYPTO',
+              lastPrice: coin.price_usd,
+              change24h: coin.percent_change_24h,
+              high24h: high.toString(),
+              low24h: low.toString(),
+              volume24h: coin.volume24,
+              marketCap: coin.market_cap_usd,
+              pricePrecision: price < 1 ? 4 : 2,
+              qtyPrecision: 6,
+              isTrending: change > 5,
+            });
+          });
+          
+          setPairs(marketPairs);
+          setRealPrices(pricesMap);
+        }
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch real data:', error);
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAllRealData();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchAllRealData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Find current pair from list
+  useEffect(() => {
+    if (pairs.length === 0) return;
+    
+    // Try to find by exact symbol match
+    let found = pairs.find(p => p.symbol === symbol);
+    
+    // If not found, try without USD/USDT
+    if (!found) {
+      const baseSymbol = symbol.replace('USD', '').replace('USDT', '');
+      found = pairs.find(p => p.symbol === baseSymbol);
+    }
+    
+    // If still not found, use first pair
+    if (!found && pairs.length > 0) {
+      found = pairs[0];
+    }
+    
     setPair(found || null);
   }, [symbol, pairs]);
 
-  useEffect(() => {
-    if (!pair) return;
-    
-    setIsConnecting(true);
-    setWsStatus('connecting');
-    
-    try {
-      liveMarketData.connectCrypto();
-      liveMarketData.connectForex();
-      
-      const timer = setTimeout(() => {
-        setIsConnecting(false);
-        setWsStatus('connected');
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      setWsStatus('disconnected');
-      setIsConnecting(false);
-    }
-  }, [pair]);
+  // Get live data for current pair
+  const currentPairData = pair ? realPrices[pair.symbol] || realPrices[pair.base] : null;
+  const liveTicker = pair ? tickers[pair.symbol] : null;
+  
+  // Use real API data as priority
+  const displayPrice = currentPairData?.price ?? liveTicker?.price ?? (pair ? parseFloat(pair.lastPrice) : 0);
+  const displayChange = currentPairData?.change ?? liveTicker?.change24h ?? (pair ? parseFloat(pair.change24h) : 0);
+  const displayHigh = currentPairData?.high ?? liveTicker?.high24h ?? (pair ? parseFloat(pair.high24h) : 0);
+  const displayLow = currentPairData?.low ?? liveTicker?.low24h ?? (pair ? parseFloat(pair.low24h) : 0);
+  const up = displayChange >= 0;
 
   const loadUserData = useCallback(() => {
     if (!user) return;
@@ -106,30 +141,27 @@ export default function TradeTerminal() {
     loadUserData();
   };
 
-  if (!pair) {
+  if (isLoading || pairs.length === 0) {
     return (
       <div className="min-h-screen">
         <Navbar />
-        <div className="p-10 text-center text-muted">Loading market…</div>
+        <div className="p-10 text-center text-muted">Loading real market data...</div>
       </div>
     );
   }
 
-  const price = live?.price ?? Number(pair.lastPrice);
-  const change = live?.change24h ?? Number(pair.change24h);
-  const up = change >= 0;
-  const high = live?.high24h ?? Number(pair.high24h);
-  const low = live?.low24h ?? Number(pair.low24h);
+  if (!pair) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="p-10 text-center text-muted">Market not found</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-
-      {wsStatus !== 'connected' && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/30 text-yellow-500 text-sm py-1.5 px-4 text-center">
-          {wsStatus === 'connecting' ? 'Connecting to live market data...' : 'Reconnecting to market data...'}
-        </div>
-      )}
 
       <div className="border-b border-border bg-bg-soft">
         <div className="mx-auto max-w-[1600px] px-4 py-3 flex items-center gap-6 overflow-x-auto">
@@ -139,12 +171,12 @@ export default function TradeTerminal() {
           </div>
           <div className="text-right">
             <div className={cn('text-xl font-bold tabular-nums', up ? 'text-up' : 'text-down')}>
-              {fmtPrice(price, pair.pricePrecision)}
+              {fmtPrice(displayPrice, pair.pricePrecision)}
             </div>
           </div>
-          <Stat label="24h Change" value={fmtChange(change)} className={up ? 'text-up' : 'text-down'} />
-          <Stat label="24h High" value={fmtPrice(high, pair.pricePrecision)} />
-          <Stat label="24h Low" value={fmtPrice(low, pair.pricePrecision)} />
+          <Stat label="24h Change" value={fmtChange(displayChange)} className={up ? 'text-up' : 'text-down'} />
+          <Stat label="24h High" value={fmtPrice(displayHigh, pair.pricePrecision)} />
+          <Stat label="24h Low" value={fmtPrice(displayLow, pair.pricePrecision)} />
         </div>
       </div>
 
@@ -154,78 +186,9 @@ export default function TradeTerminal() {
             <div className="text-xs font-semibold text-gold px-2 py-2 border-b border-border mb-2">
               MARKETS
             </div>
-            
-            {/* TOP CRYPTO */}
-            <div className="text-xs text-muted px-2 py-1 mt-1">Top Crypto</div>
-            {pairs.slice(0, 5).map((p) => {
-              const t = useMarket.getState().tickers[p.symbol];
-              const pc = t?.change24h ?? Number(p.change24h);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => router.push(`/trade/${p.symbol}`)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
-                    p.symbol === pair.symbol && 'bg-bg-hover'
-                  )}
-                >
-                  <span className="truncate">{p.displayName}</span>
-                  <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
-                    {pc >= 0 ? '+' : ''}{fmtChange(pc)}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* MID CAP CRYPTO */}
-            <div className="text-xs text-muted px-2 py-1 mt-3">Mid Cap Crypto</div>
-            {pairs.slice(5, 10).map((p) => {
-              const t = useMarket.getState().tickers[p.symbol];
-              const pc = t?.change24h ?? Number(p.change24h);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => router.push(`/trade/${p.symbol}`)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
-                    p.symbol === pair.symbol && 'bg-bg-hover'
-                  )}
-                >
-                  <span className="truncate">{p.displayName}</span>
-                  <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
-                    {pc >= 0 ? '+' : ''}{fmtChange(pc)}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* SMALL CAP */}
-            <div className="text-xs text-muted px-2 py-1 mt-3">Small Cap</div>
-            {pairs.slice(10, 12).map((p) => {
-              const t = useMarket.getState().tickers[p.symbol];
-              const pc = t?.change24h ?? Number(p.change24h);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => router.push(`/trade/${p.symbol}`)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
-                    p.symbol === pair.symbol && 'bg-bg-hover'
-                  )}
-                >
-                  <span className="truncate">{p.displayName}</span>
-                  <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
-                    {pc >= 0 ? '+' : ''}{fmtChange(pc)}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* FOREX */}
-            <div className="text-xs text-muted px-2 py-1 mt-3 border-t border-border pt-2">Forex</div>
-            {pairs.slice(12, 19).map((p) => {
-              const t = useMarket.getState().tickers[p.symbol];
-              const pc = t?.change24h ?? Number(p.change24h);
+            {pairs.slice(0, 30).map((p) => {
+              const pairData = realPrices[p.symbol] || realPrices[p.base];
+              const pc = pairData?.change ?? (tickers[p.symbol]?.change24h ?? parseFloat(p.change24h));
               return (
                 <button
                   key={p.id}
@@ -249,7 +212,7 @@ export default function TradeTerminal() {
           </section>
 
           <section className="col-span-12 lg:col-span-3 order-3">
-            <OrderPanel pair={pair} onPlaced={loadUserData} />
+            <OrderPanel pair={{...pair, lastPrice: displayPrice.toString()}} onPlaced={loadUserData} />
           </section>
         </div>
 
