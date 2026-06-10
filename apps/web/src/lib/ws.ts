@@ -30,8 +30,16 @@ export function onTickers(callback: (tickers: Record<string, Ticker>) => void): 
     callback({ ...tickersCache });
   }
   
-  // Subscribe to individual symbols
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'EURUSD', 'GBPUSD'];
+  // Subscribe to individual symbols - UPDATED with more pairs
+  const symbols = [
+    // Crypto
+    'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 
+    'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 
+    'DOTUSDT', 'LINKUSDT', 'MATICUSDT', 'SHIBUSDT',
+    // Forex
+    'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 
+    'USDCAD', 'NZDUSD', 'USDCHF'
+  ];
   
   symbols.forEach(symbol => {
     liveMarketData.subscribe(symbol, (price, change24h, high, low, volume) => {

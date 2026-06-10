@@ -40,15 +40,25 @@ class LiveMarketData {
         const response = await fetch('https://www.live-rates.com/rates');
         const data = await response.json();
         
-        const eurSubs = this.subscribers.get('EURUSD');
-        if (eurSubs) {
-          eurSubs.forEach(cb => cb(data.EURUSD, data.EURUSD_Change || '0'));
-        }
+        // List of all forex pairs to update
+        const forexPairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF'];
         
-        const gbpSubs = this.subscribers.get('GBPUSD');
-        if (gbpSubs) {
-          gbpSubs.forEach(cb => cb(data.GBPUSD, data.GBPUSD_Change || '0'));
-        }
+        forexPairs.forEach(pair => {
+          const subs = this.subscribers.get(pair);
+          if (subs && subs.length > 0) {
+            let price = data[pair];
+            let change = data[`${pair}_Change`] || '0';
+            
+            // Fallback if exact pair not found
+            if (!price) {
+              // Try alternative naming
+              const altKey = pair === 'USDJPY' ? 'USDJPY' : pair;
+              price = data[altKey] || 1.0;
+            }
+            
+            subs.forEach(cb => cb(price, change));
+          }
+        });
       } catch (error) {
         console.error('Forex fetch error:', error);
       }
