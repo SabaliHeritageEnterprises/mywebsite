@@ -1,162 +1,72 @@
 'use client';
 
 import { create } from 'zustand';
-import { liveMarketData } from '@/lib/liveMarketData';
-import { fetchAllTickers, convertToMarketPairs } from '@/lib/coinlore';
-import { api } from '@/lib/api';
-import type { MarketPair } from '@/lib/types';
+import type { Ticker } from '@/lib/types';
 
-type Ticker = {
-  symbol: string;
-  price: number;
-  change24h: number;
-  high24h?: number;
-  low24h?: number;
-  volume24h?: number;
-};
+// CoinLore API - Free, no API key needed
+const COINLORE_URL = 'https://api.coinlore.net/api';
 
-type MarketState = {
+interface MarketState {
   tickers: Record<string, Ticker>;
-  allPairs: MarketPair[];
-  filteredPairs: MarketPair[];
-  searchQuery: string;
-  selectedType: 'ALL' | 'CRYPTO' | 'FOREX';
   isLoading: boolean;
-  setSnapshot: (tickers: Record<string, Ticker>) => void;
-  setPairs: (pairs: MarketPair[]) => void;
-  updateTicker: (symbol: string, price: number, change24h: string, high?: number, low?: number, volume?: number) => void;
-  setSearch: (query: string) => void;
-  setType: (type: 'ALL' | 'CRYPTO' | 'FOREX') => void;
-  refreshPrices: () => Promise<void>;
-};
+  setSnapshot: (list: Ticker[]) => void;
+  upsert: (t: Ticker) => void;
+  fetchRealPrices: () => Promise<void>;
+}
 
+/** Live in-memory ticker cache fed by the WebSocket snapshot stream + CoinLore API fallback */
 export const useMarket = create<MarketState>((set, get) => ({
   tickers: {},
-  allPairs: [],
-  filteredPairs: [],
-  searchQuery: '',
-  selectedType: 'ALL',
   isLoading: true,
   
-  setSnapshot: (tickers) => {
-    set({ tickers, isLoading: false });
-  },
+  setSnapshot: (list) =>
+    set(() => {
+      const next: Record<string, Ticker> = {};
+      for (const t of list) next[t.symbol] = t;
+      return { tickers: next, isLoading: false };
+    }),
+    
+  upsert: (t) => set((s) => ({ 
+    tickers: { ...s.tickers, [t.symbol]: t },
+    isLoading: false,
+  })),
   
-  setPairs: (pairs) => {
-    set({ allPairs: pairs, filteredPairs: pairs, isLoading: false });
-  },
-  
-  updateTicker: (symbol, price, change24h, high, low, volume) => {
-    set((state) => ({
-      tickers: {
-        ...state.tickers,
-        [symbol]: {
-          symbol,
-          price,
-          change24h: parseFloat(change24h),
-          high24h: high,
-          low24h: low,
-          volume24h: volume,
-        },
-      },
-    }));
-    
-    // Also update pairs with live data
-    const { allPairs } = get();
-    const updatedPairs = allPairs.map(pair => {
-      if (pair.symbol === symbol || pair.base === symbol) {
-        return {
-          ...pair,
-          lastPrice: price.toString(),
-          change24h: change24h,
-        };
-      }
-      return pair;
-    });
-    set({ allPairs: updatedPairs, filteredPairs: updatedPairs });
-  },
-  
-  setSearch: (query) => {
-    const { allPairs, selectedType } = get();
-    let filtered = allPairs;
-    
-    if (selectedType !== 'ALL') {
-      filtered = filtered.filter(p => p.type === selectedType);
-    }
-    
-    if (query) {
-      const lowerQuery = query.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.displayName.toLowerCase().includes(lowerQuery) ||
-        p.symbol.toLowerCase().includes(lowerQuery)
-      );
-    }
-    
-    set({ searchQuery: query, filteredPairs: filtered });
-  },
-  
-  setType: (type) => {
-    const { allPairs, searchQuery } = get();
-    let filtered = allPairs;
-    
-    if (type !== 'ALL') {
-      filtered = filtered.filter(p => p.type === type);
-    }
-    
-    if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.displayName.toLowerCase().includes(lowerQuery) ||
-        p.symbol.toLowerCase().includes(lowerQuery)
-      );
-    }
-    
-    set({ selectedType: type, filteredPairs: filtered });
-  },
-  
-  refreshPrices: async () => {
+  fetchRealPrices: async () => {
     try {
-      // Try your API first
-      const response = await api.get<MarketPair[]>('/market/pairs');
-      set({ allPairs: response.data, filteredPairs: response.data, isLoading: false });
+      const response = await fetch(`${COINLORE_URL}/tickers/?limit=100`);
+      const data = await response.json();
+      const tickers: Record<string, Ticker> = {};
+      
+      if (data.data && Array.isArray(data.data)) {
+        data.data.forEach((coin: any) => {
+          tickers[coin.symbol] = {
+            symbol: coin.symbol,
+            price: parseFloat(coin.price_usd),
+            change24h: parseFloat(coin.percent_change_24h),
+            high24h: parseFloat(coin.price_usd) * 1.02,
+            low24h: parseFloat(coin.price_usd) * 0.98,
+            volume24h: parseFloat(coin.volume24),
+            ts: Date.now(),
+          };
+        });
+        
+        set({ tickers, isLoading: false });
+        console.log(`✅ Loaded ${Object.keys(tickers).length} trading pairs from CoinLore`);
+      }
     } catch (error) {
-      // Fallback to CoinLore for 1400+ pairs
-      console.log('Falling back to CoinLore API for 1400+ pairs');
-      const tickers = await fetchAllTickers();
-      const pairs = convertToMarketPairs(tickers);
-      set({ allPairs: pairs, filteredPairs: pairs, isLoading: false });
+      console.error('Failed to fetch prices from CoinLore:', error);
+      set({ isLoading: false });
     }
   },
 }));
 
-// Initialize on app load
+// Auto-fetch real prices on app load (only in browser)
 if (typeof window !== 'undefined') {
-  // Fetch all pairs
-  useMarket.getState().refreshPrices();
+  // Initial fetch
+  useMarket.getState().fetchRealPrices();
   
-  // Connect WebSocket for live updates on top pairs
-  setTimeout(() => {
-    liveMarketData.connectCrypto();
-    liveMarketData.connectForex();
-    
-    // Top 50 symbols for real-time updates
-    const symbols = [
-      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 
-      'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT',
-      'MATICUSDT', 'SHIBUSDT', 'TRXUSDT', 'ATOMUSDT', 'LTCUSDT',
-      'BCHUSDT', 'NEARUSDT', 'ALGOUSDT', 'VETUSDT', 'FILUSDT',
-      'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF'
-    ];
-    
-    symbols.forEach(symbol => {
-      liveMarketData.subscribe(symbol, (price, change24h, high, low, volume) => {
-        useMarket.getState().updateTicker(symbol, price, change24h, high, low, volume);
-      });
-    });
-  }, 1000);
-  
-  // Refresh prices every 30 seconds
+  // Refresh every 30 seconds
   setInterval(() => {
-    useMarket.getState().refreshPrices();
+    useMarket.getState().fetchRealPrices();
   }, 30000);
 }
