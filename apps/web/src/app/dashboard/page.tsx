@@ -41,9 +41,9 @@ function PortfolioTab({ balance }: { balance: number }) {
 
 // Deposit Tab Component
 const DEPOSIT_ASSETS = [
-  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: 'TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX-DEMO' },
-  { sym: 'BTC', name: 'Bitcoin', network: 'Bitcoin (native SegWit)', glyph: '₿', color: '#f7931a', address: 'bc1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-DEMO' },
-  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0x0000000000000000000000000000000000-DEMO' },
+  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
+  { sym: 'BTC', name: 'Bitcoin', network: 'Bitcoin (native SegWit)', glyph: '₿', color: '#f7931a', address: 'bc1qgxkt5vfh5z2nccqscq00fcjeun26cckjgfuzendhvj483sgcupvskqk0ak' },
+  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
 ];
 
 function DepositTab() {
