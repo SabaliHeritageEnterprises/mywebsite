@@ -89,7 +89,7 @@ export default function RegisterPage() {
             <Done email={email} />
           ) : (
             <>
-              <h2 className="text-3xl font-bold mb-7">Welcome to ApexTrade</h2>
+              <h2 className="text-3xl font-bold mb-7">Welcome to <Cryprocoin></Cryprocoin></h2>
 
               <form onSubmit={submit} className="space-y-4">
                 <div>
@@ -129,7 +129,7 @@ export default function RegisterPage() {
                 <label className="flex items-start gap-2 text-sm text-muted cursor-pointer pt-1">
                   <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)}
                     className="mt-0.5 accent-[var(--gold)]" style={{ width: 16, height: 16 }} />
-                  <span>By creating an account, I agree to ApexTrade&apos;s{' '}
+                  <span>By creating an account, I agree to cryptocoin&apos;s{' '}
                     <a href="#" className="text-gold underline">Terms</a> &{' '}
                     <a href="#" className="text-gold underline">Privacy Notice</a>.</span>
                 </label>
