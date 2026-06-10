@@ -5,11 +5,12 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy API files directly (not nested in apps/api)
+# Copy API files
 COPY apps/api/package*.json ./
 COPY apps/api/prisma ./prisma/
 
-RUN npm ci --legacy-peer-deps
+# Change npm ci to npm install
+RUN npm install --legacy-peer-deps
 RUN npx prisma generate
 
 # Copy source code
@@ -33,10 +34,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package*.json ./
 
-# Generate Prisma client
 RUN npx prisma generate
 
 EXPOSE 4000
 
-# Run migrations and start
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
