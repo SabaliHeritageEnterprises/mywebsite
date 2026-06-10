@@ -23,7 +23,12 @@ RUN cd apps/api && npx prisma generate
 
 # Copy source code
 COPY apps/api ./apps/api
-COPY tsconfig.json ./tsconfig.json
+
+# ✅ FIXED: Copy tsconfig from the correct location
+COPY apps/api/tsconfig.json ./apps/api/tsconfig.json
+
+# If you have a root tsconfig.json that doesn't exist, remove or comment this line
+# COPY tsconfig.json ./tsconfig.json
 
 # Build the TypeScript code
 RUN cd apps/api && npm run build
