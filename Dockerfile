@@ -5,17 +5,20 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY apps/api/package*.json ./apps/api/
-COPY apps/api/prisma ./apps/api/prisma/
+# Copy API files directly (not nested in apps/api)
+COPY apps/api/package*.json ./
+COPY apps/api/prisma ./prisma/
 
 RUN npm ci --legacy-peer-deps
-RUN cd apps/api && npx prisma generate
+RUN npx prisma generate
 
-COPY apps/api ./apps/api
-COPY apps/api/tsconfig.json ./apps/api/tsconfig.json
+# Copy source code
+COPY apps/api/src ./src
+COPY apps/api/tsconfig.json ./
+COPY apps/api/nest-cli.json ./
 
-RUN cd apps/api && npm run build
+# Build
+RUN npm run build
 
 # Production stage
 FROM node:22-slim
@@ -24,17 +27,16 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/apps/api/package*.json ./apps/api/
+# Copy built files
 COPY --from=builder /app/node_modules ./node_modules
-# ❌ REMOVED this line: COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package*.json ./
 
-WORKDIR /app/apps/api
-
+# Generate Prisma client
 RUN npx prisma generate
 
 EXPOSE 4000
 
+# Run migrations and start
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
