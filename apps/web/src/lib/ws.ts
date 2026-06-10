@@ -1,42 +1,33 @@
 'use client';
 
 import { liveMarketData } from './liveMarketData';
-
-export type Ticker = {
-  symbol: string;
-  price: number;
-  change24h: number;
-  high24h?: number;
-  low24h?: number;
-  volume24h?: number;
-};
+import type { Ticker } from '@/lib/types';
 
 // Store tickers in memory
 let tickersCache: Record<string, Ticker> = {};
-let tickerCallbacks: ((tickers: Record<string, Ticker>) => void)[] = [];
+let tickerCallbacks: ((tickers: Ticker[]) => void)[] = [];
 
 // Notify all subscribers when tickers update
 function notifySubscribers() {
-  tickerCallbacks.forEach(cb => cb({ ...tickersCache }));
+  const tickerArray = Object.values(tickersCache);
+  tickerCallbacks.forEach(cb => cb([...tickerArray]));
 }
 
 // Subscribe to real-time data from Binance + Forex APIs
-export function onTickers(callback: (tickers: Record<string, Ticker>) => void): () => void {
+export function onTickers(callback: (tickers: Ticker[]) => void): () => void {
   // Add callback to list
   tickerCallbacks.push(callback);
   
   // Send current cache immediately if it has data
   if (Object.keys(tickersCache).length > 0) {
-    callback({ ...tickersCache });
+    callback(Object.values(tickersCache));
   }
   
-  // Subscribe to individual symbols - UPDATED with more pairs
+  // Subscribe to individual symbols
   const symbols = [
-    // Crypto
     'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 
     'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 
     'DOTUSDT', 'LINKUSDT', 'MATICUSDT', 'SHIBUSDT',
-    // Forex
     'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 
     'USDCAD', 'NZDUSD', 'USDCHF'
   ];
@@ -47,9 +38,10 @@ export function onTickers(callback: (tickers: Record<string, Ticker>) => void): 
         symbol,
         price,
         change24h: parseFloat(change24h),
-        high24h: high,
-        low24h: low,
-        volume24h: volume,
+        high24h: high || 0,
+        low24h: low || 0,
+        volume24h: volume || 0,
+        ts: Date.now(),
       };
       notifySubscribers();
     });
@@ -73,30 +65,26 @@ export function onTicker(symbol: string, callback: (ticker: Ticker) => void): ()
       symbol,
       price,
       change24h: parseFloat(change24h),
-      high24h: high,
-      low24h: low,
-      volume24h: volume,
+      high24h: high || 0,
+      low24h: low || 0,
+      volume24h: volume || 0,
+      ts: Date.now(),
     });
   };
   
   liveMarketData.subscribe(symbol, handler);
-  
-  // Ensure connection is active
   liveMarketData.connectCrypto();
   liveMarketData.connectForex();
   
-  return () => {
-    // Note: Unsubscribe functionality would need to be implemented in liveMarketData
-    // For now, the callback just won't be called
-  };
+  return () => {};
 }
 
 // Helper to get current tickers
-export function getCurrentTickers(): Record<string, Ticker> {
-  return { ...tickersCache };
+export function getCurrentTickers(): Ticker[] {
+  return Object.values(tickersCache);
 }
 
-// Disconnect all connections (useful for cleanup)
+// Disconnect all connections
 export function disconnectMarketData() {
   liveMarketData.disconnect();
   tickerCallbacks = [];

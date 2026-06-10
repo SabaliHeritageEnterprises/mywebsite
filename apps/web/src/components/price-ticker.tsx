@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 export function PriceTicker() {
   const { tickers, isLoading } = useMarket();
-  const list = Object.values(tickers).slice(0, 30); // Top 30 by market cap
+  const list = Object.values(tickers);
 
   if (isLoading || list.length === 0) {
     return (
@@ -16,8 +16,9 @@ export function PriceTicker() {
     );
   }
 
-  // Duplicate for seamless marquee
-  const loop = [...list, ...list];
+  // Take only top 30
+  const top30 = list.slice(0, 30);
+  const loop = [...top30, ...top30];
 
   return (
     <div className="h-10 border-y border-border/60 bg-bg-soft overflow-hidden relative">
