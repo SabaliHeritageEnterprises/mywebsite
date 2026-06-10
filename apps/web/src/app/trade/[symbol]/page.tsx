@@ -14,32 +14,32 @@ import type { MarketPair, Trade, Position } from '@/lib/types';
 type BottomTab = 'positions' | 'orders' | 'history';
 
 const MOCK_PAIRS: MarketPair[] = [
-  // Existing pairs
+  // === 🔥 TOP CRYPTO (Large Cap - First 5) ===
   { id: '1', symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', lastPrice: '43250.75', change24h: '2.5', high24h: '43800', low24h: '42800', volume24h: '1.2B', marketCap: '800B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
   { id: '2', symbol: 'ETHUSDT', base: 'ETH', quote: 'USDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', lastPrice: '2250.30', change24h: '1.8', high24h: '2280', low24h: '2230', volume24h: '890M', marketCap: '270B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
-  { id: '3', symbol: 'SOLUSDT', base: 'SOL', quote: 'USDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: '98.45', change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', marketCap: '42B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
   { id: '4', symbol: 'BNBUSDT', base: 'BNB', quote: 'USDT', displayName: 'BNB / USDT', type: 'CRYPTO', lastPrice: '305.20', change24h: '0.2', high24h: '308', low24h: '303', volume24h: '210M', marketCap: '50B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
-  
-  // NEW CRYPTO PAIRS
   { id: '7', symbol: 'XRPUSDT', base: 'XRP', quote: 'USDT', displayName: 'Ripple / USDT', type: 'CRYPTO', lastPrice: '0.52', change24h: '-1.2', high24h: '0.53', low24h: '0.51', volume24h: '450M', marketCap: '28B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
-  { id: '8', symbol: 'DOGEUSDT', base: 'DOGE', quote: 'USDT', displayName: 'Dogecoin / USDT', type: 'CRYPTO', lastPrice: '0.12', change24h: '5.2', high24h: '0.13', low24h: '0.11', volume24h: '680M', marketCap: '17B', pricePrecision: 4, qtyPrecision: 6, isTrending: true },
+  { id: '3', symbol: 'SOLUSDT', base: 'SOL', quote: 'USDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: '98.45', change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', marketCap: '42B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
+
+  // === 📈 MID CAP CRYPTO ===
   { id: '9', symbol: 'ADAUSDT', base: 'ADA', quote: 'USDT', displayName: 'Cardano / USDT', type: 'CRYPTO', lastPrice: '0.45', change24h: '0.8', high24h: '0.46', low24h: '0.44', volume24h: '280M', marketCap: '15B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
-  { id: '10', symbol: 'AVAXUSDT', base: 'AVAX', quote: 'USDT', displayName: 'Avalanche / USDT', type: 'CRYPTO', lastPrice: '35.20', change24h: '-2.1', high24h: '36.00', low24h: '34.50', volume24h: '190M', marketCap: '13B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
+  { id: '8', symbol: 'DOGEUSDT', base: 'DOGE', quote: 'USDT', displayName: 'Dogecoin / USDT', type: 'CRYPTO', lastPrice: '0.12', change24h: '5.2', high24h: '0.13', low24h: '0.11', volume24h: '680M', marketCap: '17B', pricePrecision: 4, qtyPrecision: 6, isTrending: true },
   { id: '11', symbol: 'DOTUSDT', base: 'DOT', quote: 'USDT', displayName: 'Polkadot / USDT', type: 'CRYPTO', lastPrice: '7.85', change24h: '1.5', high24h: '8.00', low24h: '7.70', volume24h: '150M', marketCap: '9.5B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
   { id: '12', symbol: 'LINKUSDT', base: 'LINK', quote: 'USDT', displayName: 'Chainlink / USDT', type: 'CRYPTO', lastPrice: '15.30', change24h: '3.2', high24h: '15.80', low24h: '14.90', volume24h: '220M', marketCap: '8.5B', pricePrecision: 2, qtyPrecision: 6, isTrending: true },
+  { id: '10', symbol: 'AVAXUSDT', base: 'AVAX', quote: 'USDT', displayName: 'Avalanche / USDT', type: 'CRYPTO', lastPrice: '35.20', change24h: '-2.1', high24h: '36.00', low24h: '34.50', volume24h: '190M', marketCap: '13B', pricePrecision: 2, qtyPrecision: 6, isTrending: false },
+
+  // === 🎲 SMALL CAP ===
   { id: '13', symbol: 'MATICUSDT', base: 'MATIC', quote: 'USDT', displayName: 'Polygon / USDT', type: 'CRYPTO', lastPrice: '0.68', change24h: '1.2', high24h: '0.69', low24h: '0.67', volume24h: '180M', marketCap: '6.5B', pricePrecision: 4, qtyPrecision: 6, isTrending: false },
   { id: '14', symbol: 'SHIBUSDT', base: 'SHIB', quote: 'USDT', displayName: 'Shiba Inu / USDT', type: 'CRYPTO', lastPrice: '0.000023', change24h: '3.5', high24h: '0.000024', low24h: '0.000022', volume24h: '320M', marketCap: '13.5B', pricePrecision: 8, qtyPrecision: 6, isTrending: true },
-  
-  // Existing forex pairs
+
+  // === 💱 FOREX ===
   { id: '5', symbol: 'EURUSD', base: 'EUR', quote: 'USD', displayName: 'Euro / US Dollar', type: 'FOREX', lastPrice: '1.0895', change24h: '0.15', high24h: '1.0920', low24h: '1.0870', volume24h: '2.1B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: true },
   { id: '6', symbol: 'GBPUSD', base: 'GBP', quote: 'USD', displayName: 'British Pound / US Dollar', type: 'FOREX', lastPrice: '1.2745', change24h: '-0.08', high24h: '1.2780', low24h: '1.2710', volume24h: '1.8B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  
-  // NEW FOREX PAIRS
   { id: '15', symbol: 'USDJPY', base: 'USD', quote: 'JPY', displayName: 'US Dollar / Japanese Yen', type: 'FOREX', lastPrice: '148.32', change24h: '0.22', high24h: '148.80', low24h: '147.90', volume24h: '1.5B', marketCap: '', pricePrecision: 2, qtyPrecision: 4, isTrending: true },
   { id: '16', symbol: 'AUDUSD', base: 'AUD', quote: 'USD', displayName: 'Australian Dollar / US Dollar', type: 'FOREX', lastPrice: '0.6650', change24h: '-0.12', high24h: '0.6680', low24h: '0.6630', volume24h: '1.1B', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
   { id: '17', symbol: 'USDCAD', base: 'USD', quote: 'CAD', displayName: 'US Dollar / Canadian Dollar', type: 'FOREX', lastPrice: '1.3720', change24h: '0.08', high24h: '1.3750', low24h: '1.3690', volume24h: '980M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
-  { id: '18', symbol: 'NZDUSD', base: 'NZD', quote: 'USD', displayName: 'New Zealand Dollar / US Dollar', type: 'FOREX', lastPrice: '0.6120', change24h: '-0.05', high24h: '0.6150', low24h: '0.6100', volume24h: '750M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
   { id: '19', symbol: 'USDCHF', base: 'USD', quote: 'CHF', displayName: 'US Dollar / Swiss Franc', type: 'FOREX', lastPrice: '0.9050', change24h: '-0.03', high24h: '0.9070', low24h: '0.9030', volume24h: '820M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
+  { id: '18', symbol: 'NZDUSD', base: 'NZD', quote: 'USD', displayName: 'New Zealand Dollar / US Dollar', type: 'FOREX', lastPrice: '0.6120', change24h: '-0.05', high24h: '0.6150', low24h: '0.6100', volume24h: '750M', marketCap: '', pricePrecision: 4, qtyPrecision: 4, isTrending: false },
 ];
 
 export default function TradeTerminal() {
@@ -151,27 +151,98 @@ export default function TradeTerminal() {
       <main className="mx-auto max-w-[1600px] px-4 py-4 w-full flex-1">
         <div className="grid grid-cols-12 gap-4">
           <aside className="col-span-12 lg:col-span-2 card p-2 max-h-[600px] overflow-y-auto order-2 lg:order-1">
-            <div className="text-xs text-muted px-2 py-1">Markets</div>
-            {pairs.map((p) => {
-              const t = useMarket.getState().tickers[p.symbol];
-              const pc = t?.change24h ?? Number(p.change24h);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => router.push(`/trade/${p.symbol}`)}
-                  className={cn(
-                    'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
-                    p.symbol === pair.symbol && 'bg-bg-hover',
-                  )}
-                >
-                  <span>{p.displayName}</span>
-                  <span className={cn('text-xs tabular-nums', pc >= 0 ? 'text-up' : 'text-down')}>
-                    {fmtChange(pc)}
-                  </span>
-                </button>
-              );
-            })}
-          </aside>
+  <div className="text-xs font-semibold text-gold px-2 py-2 border-b border-border mb-2">
+    📊 MARKETS
+  </div>
+  
+  {/* 🔥 TOP CRYPTO - Large Cap */}
+  <div className="text-xs text-muted px-2 py-1 mt-1">🔥 Top Crypto</div>
+  {pairs.slice(0, 5).map((p) => {
+    const t = useMarket.getState().tickers[p.symbol];
+    const pc = t?.change24h ?? Number(p.change24h);
+    return (
+      <button
+        key={p.id}
+        onClick={() => router.push(`/trade/${p.symbol}`)}
+        className={cn(
+          'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
+          p.symbol === pair.symbol && 'bg-bg-hover'
+        )}
+      >
+        <span className="truncate">{p.displayName}</span>
+        <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
+          {pc >= 0 ? '+' : ''}{fmtChange(pc)}
+        </span>
+      </button>
+    );
+  })}
+
+  {/* 📈 MID CAP CRYPTO */}
+  <div className="text-xs text-muted px-2 py-1 mt-3">📈 Mid Cap Crypto</div>
+  {pairs.slice(4, 9).map((p) => {
+    const t = useMarket.getState().tickers[p.symbol];
+    const pc = t?.change24h ?? Number(p.change24h);
+    return (
+      <button
+        key={p.id}
+        onClick={() => router.push(`/trade/${p.symbol}`)}
+        className={cn(
+          'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
+          p.symbol === pair.symbol && 'bg-bg-hover'
+        )}
+      >
+        <span className="truncate">{p.displayName}</span>
+        <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
+          {pc >= 0 ? '+' : ''}{fmtChange(pc)}
+        </span>
+      </button>
+    );
+  })}
+
+  {/* 🎲 SMALL CAP */}
+  <div className="text-xs text-muted px-2 py-1 mt-3">🎲 Small Cap</div>
+  {pairs.slice(9, 14).map((p) => {
+    const t = useMarket.getState().tickers[p.symbol];
+    const pc = t?.change24h ?? Number(p.change24h);
+    return (
+      <button
+        key={p.id}
+        onClick={() => router.push(`/trade/${p.symbol}`)}
+        className={cn(
+          'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
+          p.symbol === pair.symbol && 'bg-bg-hover'
+        )}
+      >
+        <span className="truncate">{p.displayName}</span>
+        <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
+          {pc >= 0 ? '+' : ''}{fmtChange(pc)}
+        </span>
+      </button>
+    );
+  })}
+
+  {/* 💱 FOREX */}
+  <div className="text-xs text-muted px-2 py-1 mt-3 border-t border-border pt-2">💱 Forex</div>
+  {pairs.slice(14, 19).map((p) => {
+    const t = useMarket.getState().tickers[p.symbol];
+    const pc = t?.change24h ?? Number(p.change24h);
+    return (
+      <button
+        key={p.id}
+        onClick={() => router.push(`/trade/${p.symbol}`)}
+        className={cn(
+          'w-full flex items-center justify-between px-2 py-1.5 rounded text-sm hover:bg-bg-hover',
+          p.symbol === pair.symbol && 'bg-bg-hover'
+        )}
+      >
+        <span className="truncate">{p.displayName}</span>
+        <span className={cn('text-xs tabular-nums ml-2', pc >= 0 ? 'text-up' : 'text-down')}>
+          {pc >= 0 ? '+' : ''}{fmtChange(pc)}
+        </span>
+      </button>
+    );
+  })}
+</aside>
 
           <section className="col-span-12 lg:col-span-7 order-1 lg:order-2">
             <TradingViewChart symbol={pair.symbol} type={pair.type} height={560} />
