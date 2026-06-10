@@ -18,30 +18,30 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'FAVORITES', label: 'Favorites' },
 ];
 
-// ✅ MOCK DATA - Shows instantly without backend
-const MOCK_MARKET_PAIRS: MarketPair[] = [
-  { symbol: 'BTC/USDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', price: 43250.75, change24h: 2.5, volume: '1.2B' },
-  { symbol: 'ETH/USDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', price: 2250.30, change24h: 1.8, volume: '890M' },
-  { symbol: 'SOL/USDT', displayName: 'Solana / USDT', type: 'CRYPTO', price: 98.45, change24h: -0.5, volume: '340M' },
-  { symbol: 'BNB/USDT', displayName: 'Binance Coin / USDT', type: 'CRYPTO', price: 305.20, change24h: 0.2, volume: '210M' },
-  { symbol: 'XRP/USDT', displayName: 'Ripple / USDT', type: 'CRYPTO', price: 0.52, change24h: -1.2, volume: '150M' },
-  { symbol: 'EUR/USD', displayName: 'Euro / US Dollar', type: 'FOREX', price: 1.0895, change24h: 0.15, volume: '2.1B' },
-  { symbol: 'GBP/USD', displayName: 'British Pound / US Dollar', type: 'FOREX', price: 1.2745, change24h: -0.08, volume: '1.8B' },
-  { symbol: 'USD/JPY', displayName: 'US Dollar / Japanese Yen', type: 'FOREX', price: 148.32, change24h: 0.22, volume: '1.5B' },
-];
-
 export default function MarketsPage() {
   const { user } = useAuth();
-  const [pairs, setPairs] = useState<MarketPair[]>(MOCK_MARKET_PAIRS); // ✅ Use mock data
+  const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('ALL');
   const [search, setSearch] = useState('');
 
-  // ✅ COMMENT OUT the API call - use mock data instead
-  // useEffect(() => {
-  //   api.get<MarketPair[]>('/market/pairs').then((r) => setPairs(r.data)).catch(() => {});
-  // }, []);
+  useEffect(() => {
+    // Try API first, fallback to mock data
+    api.get<MarketPair[]>('/market/pairs')
+      .then((r) => setPairs(r.data))
+      .catch(() => {
+        // ✅ Fallback mock data when backend is down
+        const mockData: MarketPair[] = [
+          { symbol: 'BTC/USDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', price: 43250.75, change24h: 2.5, volume: '1.2B' },
+          { symbol: 'ETH/USDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', price: 2250.30, change24h: 1.8, volume: '890M' },
+          { symbol: 'SOL/USDT', displayName: 'Solana / USDT', type: 'CRYPTO', price: 98.45, change24h: -0.5, volume: '340M' },
+          { symbol: 'EUR/USD', displayName: 'Euro / US Dollar', type: 'FOREX', price: 1.0895, change24h: 0.15, volume: '2.1B' },
+        ];
+        setPairs(mockData);
+      });
+  }, []);
 
+  // Rest of your component remains the same...
   useEffect(() => {
     if (!user) return;
     api.get<MarketPair[]>('/watchlist/favorites')
