@@ -41,6 +41,7 @@ export default function MarketsPage() {
     { symbol: 'EURUSD', displayName: 'Euro / US Dollar', type: 'FOREX', price: null, change24h: '0', volume: '...' },
     { symbol: 'GBPUSD', displayName: 'British Pound / US Dollar', type: 'FOREX', price: null, change24h: '0', volume: '...' },
   ]);
+
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('ALL');
   const [search, setSearch] = useState('');
