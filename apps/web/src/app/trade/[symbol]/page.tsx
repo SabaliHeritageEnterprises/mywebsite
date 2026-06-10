@@ -84,8 +84,8 @@ export default function TradeTerminal() {
             </div>
           </div>
           <Stat label="24h Change" value={fmtChange(change)} className={up ? 'text-up' : 'text-down'} />
-          <Stat label="24h High" value={fmtPrice(live?.high24h ?? Number(pair.high24h), pair.pricePrecision)} />
-          <Stat label="24h Low" value={fmtPrice(live?.low24h ?? Number(pair.low24h), pair.pricePrecision)} />
+          <Stat label="24h High" value={fmtPrice(live?.high24h ?? Number(pair?.high24h ?? 0), pair?.pricePrecision ?? 2)} />
+          <Stat label="24h Low" value={fmtPrice(live?.low24h ?? Number(pair?.low24h ?? 0), pair?.pricePrecision ?? 2)} />
         </div>
       </div>
 

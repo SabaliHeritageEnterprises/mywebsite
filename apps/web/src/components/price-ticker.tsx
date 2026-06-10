@@ -1,44 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useMarket } from '@/store/market';
-import { fmtPrice, fmtChange, cn } from '@/lib/utils';
-import Link from 'next/link';
 
-/** Scrolling live price marquee for the hero / top of page. */
 export function PriceTicker() {
   const tickers = useMarket((s) => s.tickers);
-  const list = Object.values(tickers);
+  const [tickerArray, setTickerArray] = useState<typeof tickers>({});
 
-  if (list.length === 0) {
+  useEffect(() => {
+    setTickerArray(tickers);
+  }, [tickers]);
+
+  const items = Object.values(tickerArray);
+  
+  // Duplicate for seamless loop
+  const allItems = [...items, ...items];
+
+  if (items.length === 0) {
     return (
-      <div className="h-10 border-y border-border/60 bg-bg-soft flex items-center px-4 text-xs text-muted">
-        Connecting to live market feed…
+      <div className="bg-bg-soft border-y border-border overflow-hidden py-2">
+        <div className="text-center text-muted text-sm">Loading market data...</div>
       </div>
     );
   }
 
-  // Duplicate the list so the marquee can loop seamlessly.
-  const loop = [...list, ...list];
-
   return (
-    <div className="h-10 border-y border-border/60 bg-bg-soft overflow-hidden relative">
-      <div className="flex items-center gap-8 animate-marquee whitespace-nowrap absolute h-full px-4">
-        {loop.map((t, i) => {
-          const up = t.change24h >= 0;
-          return (
-            <Link
-              key={`${t.symbol}-${i}`}
-              href={`/trade/${t.symbol}`}
-              className="flex items-center gap-2 text-sm hover:opacity-80"
-            >
-              <span className="font-medium">{t.symbol}</span>
-              <span className="tabular-nums">{fmtPrice(t.price)}</span>
-              <span className={cn('tabular-nums text-xs', up ? 'text-up' : 'text-down')}>
-                {fmtChange(t.change24h)}
-              </span>
-            </Link>
-          );
-        })}
+    <div className="bg-bg-soft border-y border-border overflow-hidden py-2">
+      <div className="animate-marquee whitespace-nowrap">
+        {allItems.map((ticker, idx) => (
+          <span key={idx} className="inline-flex items-center gap-2 mx-4">
+            <span className="font-medium text-sm">{ticker.symbol}</span>
+            <span className="font-mono text-sm">
+              ${ticker.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className={ticker.change24h >= 0 ? 'text-up text-sm' : 'text-down text-sm'}>
+              {ticker.change24h >= 0 ? '+' : ''}{ticker.change24h}%
+            </span>
+          </span>
+        ))}
       </div>
     </div>
   );

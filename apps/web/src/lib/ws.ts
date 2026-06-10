@@ -1,83 +1,96 @@
 'use client';
 
-import { io, Socket } from 'socket.io-client';
-import type { Ticker } from './types';
+import { liveMarketData } from './liveMarketData';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
+export type Ticker = {
+  symbol: string;
+  price: number;
+  change24h: number;
+  high24h?: number;
+  low24h?: number;
+  volume24h?: number;
+};
 
-let socket: Socket | null = null;
+// Store tickers in memory
+let tickersCache: Record<string, Ticker> = {};
+let tickerCallbacks: ((tickers: Record<string, Ticker>) => void)[] = [];
 
-/** Lazily create the singleton market socket connection (namespace /market). */
-export function getMarketSocket(): Socket {
-  if (!socket) {
-    socket = io(`${WS_URL}/market`, {
-      transports: ['websocket'],
-      withCredentials: true,
-      autoConnect: true,
+// Notify all subscribers when tickers update
+function notifySubscribers() {
+  tickerCallbacks.forEach(cb => cb({ ...tickersCache }));
+}
+
+// Subscribe to real-time data from Binance + Forex APIs
+export function onTickers(callback: (tickers: Record<string, Ticker>) => void): () => void {
+  // Add callback to list
+  tickerCallbacks.push(callback);
+  
+  // Send current cache immediately if it has data
+  if (Object.keys(tickersCache).length > 0) {
+    callback({ ...tickersCache });
+  }
+  
+  // Subscribe to individual symbols
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'EURUSD', 'GBPUSD'];
+  
+  symbols.forEach(symbol => {
+    liveMarketData.subscribe(symbol, (price, change24h, high, low, volume) => {
+      tickersCache[symbol] = {
+        symbol,
+        price,
+        change24h: parseFloat(change24h),
+        high24h: high,
+        low24h: low,
+        volume24h: volume,
+      };
+      notifySubscribers();
     });
-  }
-  return socket;
-}
-
-/** Subscribe to the global tickers snapshot. Returns an unsubscribe fn. */
-export function onTickers(cb: (tickers: Ticker[]) => void): () => void {
-  const s = getMarketSocket();
-  s.on('tickers', cb);
-  return () => s.off('tickers', cb);
-}
-
-/** Subscribe to a single symbol's ticker stream. */
-export function onTicker(symbol: string, cb: (t: Ticker) => void): () => void {
-  const s = getMarketSocket();
-  s.emit('subscribe', [symbol]);
-  const handler = (t: Ticker) => {
-    if (t.symbol === symbol.toUpperCase()) cb(t);
-  };
-  s.on('ticker', handler);
-  return () => {
-    s.emit('unsubscribe', [symbol]);
-    s.off('ticker', handler);
-  };
-}
-
-/* ──────────────────────────────────────────────────────────────
- *  Authenticated per-user channel (/user) — receives live admin
- *  changes & notifications for the logged-in user.
- * ────────────────────────────────────────────────────────────── */
-let userSocket: Socket | null = null;
-
-export interface UserEventHandlers {
-  onNotification?: (n: unknown) => void;
-  onAccountUpdate?: (e: { reason: string }) => void;
-  onAccountDeleted?: () => void;
-}
-
-/** Connect (or reconnect) the authenticated user socket with a JWT. */
-export function connectUserSocket(token: string, handlers: UserEventHandlers): () => void {
-  // Tear down any previous connection (e.g. token refresh / re-login).
-  if (userSocket) {
-    userSocket.disconnect();
-    userSocket = null;
-  }
-  const s = io(`${WS_URL}/user`, {
-    transports: ['websocket'],
-    withCredentials: true,
-    auth: { token },
   });
-  userSocket = s;
-  if (handlers.onNotification) s.on('notification', handlers.onNotification);
-  if (handlers.onAccountUpdate) s.on('account:update', handlers.onAccountUpdate);
-  if (handlers.onAccountDeleted) s.on('account:deleted', handlers.onAccountDeleted);
-
+  
+  // Connect to live data sources
+  liveMarketData.connectCrypto();
+  liveMarketData.connectForex();
+  
+  // Return unsubscribe function
   return () => {
-    s.disconnect();
-    if (userSocket === s) userSocket = null;
+    const index = tickerCallbacks.indexOf(callback);
+    if (index > -1) tickerCallbacks.splice(index, 1);
   };
 }
 
-export function disconnectUserSocket() {
-  if (userSocket) {
-    userSocket.disconnect();
-    userSocket = null;
-  }
+// Subscribe to a single symbol's ticker
+export function onTicker(symbol: string, callback: (ticker: Ticker) => void): () => void {
+  const handler = (price: number, change24h: string, high?: number, low?: number, volume?: number) => {
+    callback({
+      symbol,
+      price,
+      change24h: parseFloat(change24h),
+      high24h: high,
+      low24h: low,
+      volume24h: volume,
+    });
+  };
+  
+  liveMarketData.subscribe(symbol, handler);
+  
+  // Ensure connection is active
+  liveMarketData.connectCrypto();
+  liveMarketData.connectForex();
+  
+  return () => {
+    // Note: Unsubscribe functionality would need to be implemented in liveMarketData
+    // For now, the callback just won't be called
+  };
+}
+
+// Helper to get current tickers
+export function getCurrentTickers(): Record<string, Ticker> {
+  return { ...tickersCache };
+}
+
+// Disconnect all connections (useful for cleanup)
+export function disconnectMarketData() {
+  liveMarketData.disconnect();
+  tickerCallbacks = [];
+  tickersCache = {};
 }

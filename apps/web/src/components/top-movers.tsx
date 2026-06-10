@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { useMarket } from '@/store/market';
-import { fmtPrice, fmtChange, cn } from '@/lib/utils';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-/** Top gainers & losers cards, driven by the live ticker store. */
 export function TopMovers() {
   const tickers = useMarket((s) => s.tickers);
   const list = Object.values(tickers);
+  
   const sorted = [...list].sort((a, b) => b.change24h - a.change24h);
   const gainers = sorted.slice(0, 4);
   const losers = sorted.slice(-4).reverse();
@@ -24,14 +23,16 @@ export function TopMovers() {
           <li key={t.symbol}>
             <Link href={`/trade/${t.symbol}`} className="flex items-center justify-between hover:opacity-80">
               <span className="font-medium text-sm">{t.symbol}</span>
-              <span className="tabular-nums text-sm">{fmtPrice(t.price)}</span>
-              <span className={cn('tabular-nums text-sm w-20 text-right', t.change24h >= 0 ? 'text-up' : 'text-down')}>
-                {fmtChange(t.change24h)}
+              <span className="tabular-nums text-sm">
+                ${t.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className={t.change24h >= 0 ? 'text-up' : 'text-down'}>
+                {t.change24h >= 0 ? '+' : ''}{t.change24h}%
               </span>
             </Link>
           </li>
         ))}
-        {items.length === 0 && <li className="text-muted text-sm">Loading…</li>}
+        {items.length === 0 && <li className="text-muted text-sm">Loading market data…</li>}
       </ul>
     </div>
   );
