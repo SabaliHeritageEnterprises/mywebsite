@@ -5,12 +5,22 @@ import { useMarket } from '@/store/market';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 export function TopMovers() {
-  const tickers = useMarket((s) => s.tickers);
-  const list = Object.values(tickers);
+  const { allPairs, tickers, isLoading } = useMarket();
   
-  const sorted = [...list].sort((a, b) => b.change24h - a.change24h);
-  const gainers = sorted.slice(0, 4);
-  const losers = sorted.slice(-4).reverse();
+  // Get top gainers and losers from all pairs
+  const sorted = [...allPairs].sort((a, b) => 
+    parseFloat(b.change24h) - parseFloat(a.change24h)
+  );
+  const gainers = sorted.slice(0, 4).map(pair => ({
+    symbol: pair.symbol,
+    price: tickers[pair.symbol]?.price ?? parseFloat(pair.lastPrice),
+    change24h: tickers[pair.symbol]?.change24h ?? parseFloat(pair.change24h),
+  }));
+  const losers = sorted.slice(-4).reverse().map(pair => ({
+    symbol: pair.symbol,
+    price: tickers[pair.symbol]?.price ?? parseFloat(pair.lastPrice),
+    change24h: tickers[pair.symbol]?.change24h ?? parseFloat(pair.change24h),
+  }));
 
   const Card = ({ title, items, up }: { title: string; items: typeof gainers; up: boolean }) => (
     <div className="card p-5 flex-1">
@@ -36,6 +46,15 @@ export function TopMovers() {
       </ul>
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="card p-5 flex-1 text-center text-muted">Loading top movers...</div>
+        <div className="card p-5 flex-1 text-center text-muted">Loading top movers...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-4">
