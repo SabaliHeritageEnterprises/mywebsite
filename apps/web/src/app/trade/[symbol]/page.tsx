@@ -5,13 +5,23 @@ import { useParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { TradingViewChart } from '@/components/trading-view-chart';
 import { OrderPanel } from '@/components/order-panel';
-import { api, apiError } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
+import { liveMarketData } from '@/lib/liveMarketData';
 import { fmtPrice, fmtChange, cn } from '@/lib/utils';
 import type { MarketPair, Trade, Position } from '@/lib/types';
 
 type BottomTab = 'positions' | 'orders' | 'history';
+
+// Mock market pairs for the sidebar
+const MOCK_PAIRS: MarketPair[] = [
+  { id: '1', symbol: 'BTCUSDT', displayName: 'Bitcoin / USDT', type: 'CRYPTO', lastPrice: 43250.75, change24h: '2.5', high24h: '43800', low24h: '42800', volume24h: '1.2B', pricePrecision: 2 },
+  { id: '2', symbol: 'ETHUSDT', displayName: 'Ethereum / USDT', type: 'CRYPTO', lastPrice: 2250.30, change24h: '1.8', high24h: '2280', low24h: '2230', volume24h: '890M', pricePrecision: 2 },
+  { id: '3', symbol: 'SOLUSDT', displayName: 'Solana / USDT', type: 'CRYPTO', lastPrice: 98.45, change24h: '-0.5', high24h: '100.20', low24h: '97.80', volume24h: '340M', pricePrecision: 2 },
+  { id: '4', symbol: 'BNBUSDT', displayName: 'BNB / USDT', type: 'CRYPTO', lastPrice: 305.20, change24h: '0.2', high24h: '308', low24h: '303', volume24h: '210M', pricePrecision: 2 },
+  { id: '5', symbol: 'EURUSD', displayName: 'Euro / US Dollar', type: 'FOREX', lastPrice: 1.0895, change24h: '0.15', high24h: '1.0920', low24h: '1.0870', volume24h: '2.1B', pricePrecision: 4 },
+  { id: '6', symbol: 'GBPUSD', displayName: 'British Pound / US Dollar', type: 'FOREX', lastPrice: 1.2745, change24h: '-0.08', high24h: '1.2780', low24h: '1.2710', volume24h: '1.8B', pricePrecision: 4 },
+];
 
 export default function TradeTerminal() {
   const params = useParams();
@@ -19,7 +29,7 @@ export default function TradeTerminal() {
   const symbol = String(params.symbol).toUpperCase();
   const { user } = useAuth();
 
-  const [pairs, setPairs] = useState<MarketPair[]>([]);
+  const [pairs] = useState<MarketPair[]>(MOCK_PAIRS);
   const [pair, setPair] = useState<MarketPair | null>(null);
   const [tab, setTab] = useState<BottomTab>('positions');
   const [positions, setPositions] = useState<Position[]>([]);
@@ -28,30 +38,45 @@ export default function TradeTerminal() {
 
   const live = useMarket((s) => (pair ? s.tickers[pair.symbol] : undefined));
 
+  // Get current pair
   useEffect(() => {
-    api.get<MarketPair[]>('/market/pairs').then((r) => setPairs(r.data)).catch(() => {});
-  }, []);
+    const found = pairs.find(p => p.symbol === symbol);
+    setPair(found || null);
+  }, [symbol, pairs]);
 
+  // Subscribe to live data for this pair
   useEffect(() => {
-    api.get<MarketPair>(`/market/pairs/${symbol}`).then((r) => setPair(r.data)).catch(() => setPair(null));
-  }, [symbol]);
+    if (!pair) return;
+    
+    // Ensure WebSocket is connected
+    liveMarketData.connectCrypto();
+    liveMarketData.connectForex();
+    
+    // The market store already handles updates via ws.ts
+    // The 'live' variable above will update automatically
+    
+  }, [pair]);
 
   const loadUserData = useCallback(() => {
     if (!user) return;
-    api.get<Position[]>('/trades/positions?status=OPEN').then((r) => setPositions(r.data)).catch(() => {});
-    api.get<Trade[]>('/trades/orders?status=OPEN').then((r) => setOrders(r.data)).catch(() => {});
-    api.get<Trade[]>('/trades/orders').then((r) => setHistory(r.data)).catch(() => {});
+    // These would normally fetch from API, but for now use mock empty data
+    setPositions([]);
+    setOrders([]);
+    setHistory([]);
   }, [user]);
 
   useEffect(() => { loadUserData(); }, [loadUserData]);
 
   const closePosition = async (id: string) => {
-    try { await api.post(`/trades/positions/${id}/close`); loadUserData(); }
-    catch (e) { alert(apiError(e)); }
+    // Mock close - would call API
+    alert('Position closed (demo)');
+    loadUserData();
   };
+  
   const cancelOrder = async (id: string) => {
-    try { await api.delete(`/trades/orders/${id}`); loadUserData(); }
-    catch (e) { alert(apiError(e)); }
+    // Mock cancel - would call API
+    alert('Order cancelled (demo)');
+    loadUserData();
   };
 
   if (!pair) {
@@ -66,6 +91,8 @@ export default function TradeTerminal() {
   const price = live?.price ?? Number(pair.lastPrice);
   const change = live?.change24h ?? Number(pair.change24h);
   const up = change >= 0;
+  const high = live?.high24h ?? Number(pair.high24h);
+  const low = live?.low24h ?? Number(pair.low24h);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -84,8 +111,8 @@ export default function TradeTerminal() {
             </div>
           </div>
           <Stat label="24h Change" value={fmtChange(change)} className={up ? 'text-up' : 'text-down'} />
-          <Stat label="24h High" value={fmtPrice(live?.high24h ?? Number(pair?.high24h ?? 0), pair?.pricePrecision ?? 2)} />
-          <Stat label="24h Low" value={fmtPrice(live?.low24h ?? Number(pair?.low24h ?? 0), pair?.pricePrecision ?? 2)} />
+          <Stat label="24h High" value={fmtPrice(high, pair.pricePrecision)} />
+          <Stat label="24h Low" value={fmtPrice(low, pair.pricePrecision)} />
         </div>
       </div>
 
@@ -190,8 +217,8 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
               <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
               <td className="p-2 text-right">
                 <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
-              </td>
-            </tr>
+               </td>
+             </tr>
           );
         })}
       </tbody>
@@ -206,7 +233,7 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
       <thead><tr className="text-muted text-left">
         <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
         <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Action</th>
-      </tr></thead>
+       </tr></thead>
       <tbody>
         {orders.map((o) => (
           <tr key={o.id} className="border-t border-border/50">
@@ -217,8 +244,8 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
             <td className="p-2 text-right tabular-nums">{o.quantity}</td>
             <td className="p-2 text-right">
               <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
-            </td>
-          </tr>
+             </td>
+           </tr>
         ))}
       </tbody>
     </table>
@@ -233,7 +260,7 @@ function HistoryTable({ trades }: { trades: Trade[] }) {
         <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
         <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th>
         <th className="p-2">Status</th><th className="p-2 text-right">Date</th>
-      </tr></thead>
+       </tr></thead>
       <tbody>
         {trades.map((t) => (
           <tr key={t.id} className="border-t border-border/50">
@@ -244,7 +271,7 @@ function HistoryTable({ trades }: { trades: Trade[] }) {
             <td className="p-2 text-right tabular-nums">{t.quantity}</td>
             <td className="p-2 text-xs">{t.status}</td>
             <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
-          </tr>
+           </tr>
         ))}
       </tbody>
     </table>
