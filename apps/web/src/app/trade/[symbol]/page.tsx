@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter }redirect
+import { useParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { TradingViewChart } from '@/components/trading-view-chart';
 import { OrderPanel } from '@/components/order-panel';
@@ -49,11 +49,9 @@ export default function TradeTerminal() {
             const low = price * 0.98;
             const volume = parseFloat(coin.volume24);
             
-            // Store in map for quick lookup
             pricesMap[coin.symbol] = { price, change, high, low, volume };
             pricesMap[coin.symbol + 'USD'] = { price, change, high, low, volume };
             
-            // Create market pair
             marketPairs.push({
               id: coin.id,
               symbol: coin.symbol,
@@ -85,7 +83,6 @@ export default function TradeTerminal() {
     
     fetchAllRealData();
     
-    // Refresh every 30 seconds
     const interval = setInterval(fetchAllRealData, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -94,28 +91,20 @@ export default function TradeTerminal() {
   useEffect(() => {
     if (pairs.length === 0) return;
     
-    // Try to find by exact symbol match
     let found = pairs.find(p => p.symbol === symbol);
-    
-    // If not found, try without USD/USDT
     if (!found) {
       const baseSymbol = symbol.replace('USD', '').replace('USDT', '');
       found = pairs.find(p => p.symbol === baseSymbol);
     }
-    
-    // If still not found, use first pair
     if (!found && pairs.length > 0) {
       found = pairs[0];
     }
-    
     setPair(found || null);
   }, [symbol, pairs]);
 
-  // Get live data for current pair
   const currentPairData = pair ? realPrices[pair.symbol] || realPrices[pair.base] : null;
   const liveTicker = pair ? tickers[pair.symbol] : null;
   
-  // Use real API data as priority
   const displayPrice = currentPairData?.price ?? liveTicker?.price ?? (pair ? parseFloat(pair.lastPrice) : 0);
   const displayChange = currentPairData?.change ?? liveTicker?.change24h ?? (pair ? parseFloat(pair.change24h) : 0);
   const displayHigh = currentPairData?.high ?? liveTicker?.high24h ?? (pair ? parseFloat(pair.high24h) : 0);
@@ -257,103 +246,115 @@ function Stat({ label, value, className }: { label: string; value: string; class
 }
 
 function PositionsTable({ positions, onClose }: { positions: Position[]; onClose: (id: string) => void }) {
-  if (positions.length === 0) return <p className="p-6 text-center text-muted text-sm">No open positions.</p>;
+  if (positions.length === 0) {
+    return <p className="p-6 text-center text-muted text-sm">No open positions.</p>;
+  }
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-muted text-left">
-          <th className="p-2">Pair</th>
-          <th className="p-2">Side</th>
-          <th className="p-2 text-right">Qty</th>
-          <th className="p-2 text-right">Entry</th>
-          <th className="p-2 text-right">Mark</th>
-          <th className="p-2 text-right">uPnL</th>
-          <th className="p-2 text-right">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {positions.map((p) => {
-          const mark = p.markPrice ?? Number(p.pair.lastPrice);
-          const pnl = p.unrealizedPnl ?? 0;
-          return (
-            <tr key={p.id} className="border-t border-border/50">
-              <td className="p-2">{p.pair.displayName}</td>
-              <td className={cn('p-2', p.side === 'BUY' ? 'text-up' : 'text-down')}>{p.side}</td>
-              <td className="p-2 text-right tabular-nums">{p.quantity}</td>
-              <td className="p-2 text-right tabular-nums">{fmtPrice(p.entryPrice)}</td>
-              <td className="p-2 text-right tabular-nums">{fmtPrice(mark)}</td>
-              <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
-              <td className="p-2 text-right">
-                <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted text-left">
+            <th className="p-2">Pair</th>
+            <th className="p-2">Side</th>
+            <th className="p-2 text-right">Qty</th>
+            <th className="p-2 text-right">Entry</th>
+            <th className="p-2 text-right">Mark</th>
+            <th className="p-2 text-right">uPnL</th>
+            <th className="p-2 text-right">Action</th>
+           </tr>
+        </thead>
+        <tbody>
+          {positions.map((p) => {
+            const mark = p.markPrice ?? Number(p.pair.lastPrice);
+            const pnl = p.unrealizedPnl ?? 0;
+            return (
+              <tr key={p.id} className="border-t border-border/50">
+                <td className="p-2">{p.pair.displayName}</td>
+                <td className={cn('p-2', p.side === 'BUY' ? 'text-up' : 'text-down')}>{p.side}</td>
+                <td className="p-2 text-right tabular-nums">{p.quantity}</td>
+                <td className="p-2 text-right tabular-nums">{fmtPrice(p.entryPrice)}</td>
+                <td className="p-2 text-right tabular-nums">{fmtPrice(mark)}</td>
+                <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
+                <td className="p-2 text-right">
+                  <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: string) => void }) {
-  if (orders.length === 0) return <p className="p-6 text-center text-muted text-sm">No open orders.</p>;
+  if (orders.length === 0) {
+    return <p className="p-6 text-center text-muted text-sm">No open orders.</p>;
+  }
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-muted text-left">
-          <th className="p-2">Pair</th>
-          <th className="p-2">Type</th>
-          <th className="p-2">Side</th>
-          <th className="p-2 text-right">Price</th>
-          <th className="p-2 text-right">Qty</th>
-          <th className="p-2 text-right">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {orders.map((o) => (
-          <tr key={o.id} className="border-t border-border/50">
-            <td className="p-2">{o.pair.displayName}</td>
-            <td className="p-2">{o.type}</td>
-            <td className={cn('p-2', o.side === 'BUY' ? 'text-up' : 'text-down')}>{o.side}</td>
-            <td className="p-2 text-right tabular-nums">{fmtPrice(o.price)}</td>
-            <td className="p-2 text-right tabular-nums">{o.quantity}</td>
-            <td className="p-2 text-right">
-              <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
-            </td>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted text-left">
+            <th className="p-2">Pair</th>
+            <th className="p-2">Type</th>
+            <th className="p-2">Side</th>
+            <th className="p-2 text-right">Price</th>
+            <th className="p-2 text-right">Qty</th>
+            <th className="p-2 text-right">Action</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <tr key={o.id} className="border-t border-border/50">
+              <td className="p-2">{o.pair.displayName}</td>
+              <td className="p-2">{o.type}</td>
+              <td className={cn('p-2', o.side === 'BUY' ? 'text-up' : 'text-down')}>{o.side}</td>
+              <td className="p-2 text-right tabular-nums">{fmtPrice(o.price)}</td>
+              <td className="p-2 text-right tabular-nums">{o.quantity}</td>
+              <td className="p-2 text-right">
+                <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function HistoryTable({ trades }: { trades: Trade[] }) {
-  if (trades.length === 0) return <p className="p-6 text-center text-muted text-sm">No trade history yet.</p>;
+  if (trades.length === 0) {
+    return <p className="p-6 text-center text-muted text-sm">No trade history yet.</p>;
+  }
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-muted text-left">
-          <th className="p-2">Pair</th>
-          <th className="p-2">Type</th>
-          <th className="p-2">Side</th>
-          <th className="p-2 text-right">Price</th>
-          <th className="p-2 text-right">Qty</th>
-          <th className="p-2">Status</th>
-          <th className="p-2 text-right">Date</th>
-        </tr>
-      </thead>
-      <tbody>
-        {trades.map((t) => (
-          <tr key={t.id} className="border-t border-border/50">
-            <td className="p-2">{t.pair.displayName}</td>
-            <td className="p-2">{t.type}</td>
-            <td className={cn('p-2', t.side === 'BUY' ? 'text-up' : 'text-down')}>{t.side}</td>
-            <td className="p-2 text-right tabular-nums">{fmtPrice(t.filledPrice ?? t.price)}</td>
-            <td className="p-2 text-right tabular-nums">{t.quantity}</td>
-            <td className="p-2 text-xs">{t.status}</td>
-            <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted text-left">
+            <th className="p-2">Pair</th>
+            <th className="p-2">Type</th>
+            <th className="p-2">Side</th>
+            <th className="p-2 text-right">Price</th>
+            <th className="p-2 text-right">Qty</th>
+            <th className="p-2">Status</th>
+            <th className="p-2 text-right">Date</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {trades.map((t) => (
+            <tr key={t.id} className="border-t border-border/50">
+              <td className="p-2">{t.pair.displayName}</td>
+              <td className="p-2">{t.type}</td>
+              <td className={cn('p-2', t.side === 'BUY' ? 'text-up' : 'text-down')}>{t.side}</td>
+              <td className="p-2 text-right tabular-nums">{fmtPrice(t.filledPrice ?? t.price)}</td>
+              <td className="p-2 text-right tabular-nums">{t.quantity}</td>
+              <td className="p-2 text-xs">{t.status}</td>
+              <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
