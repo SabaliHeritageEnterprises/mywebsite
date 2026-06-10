@@ -1,29 +1,34 @@
+# Builder stage
 FROM node:22-slim AS builder
 
-# Install OpenSSL and Prisma dependencies
+# Install OpenSSL and build dependencies
 RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy package files
+# Copy root package files
 COPY package*.json ./
-COPY prisma ./prisma/
+
+# Copy API package files
+COPY apps/api/package*.json ./apps/api/
+
+# Copy Prisma schema
+COPY apps/api/prisma ./apps/api/prisma/
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Generate Prisma client
-RUN npx prisma generate
+RUN cd apps/api && npx prisma generate
 
 # Copy source code
-COPY src ./src
-COPY tsconfig*.json ./
-COPY nest-cli.json ./
+COPY apps/api ./apps/api
+COPY tsconfig.json ./tsconfig.json
 
-# Build TypeScript
-RUN npm run build
+# Build the TypeScript code
+RUN cd apps/api && npm run build
 
-# Production stage - Use Debian-based for better compatibility
+# Production stage
 FROM node:22-slim
 
 # Install OpenSSL for production
@@ -31,16 +36,26 @@ RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy built artifacts
-COPY --from=builder /app/node_modules ./node_modules
+# Copy package files
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/apps/api/package*.json ./apps/api/
 
-# Regenerate Prisma client for production
+# Copy node_modules
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+
+# Copy built application
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+
+# Set working directory to API
+WORKDIR /app/apps/api
+
+# Generate Prisma client for production
 RUN npx prisma generate
 
-EXPOSE 3000
+# Expose port
+EXPOSE 4000
 
 # Run migrations and start
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
