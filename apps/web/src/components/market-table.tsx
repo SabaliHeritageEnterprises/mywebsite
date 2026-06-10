@@ -1,46 +1,87 @@
 'use client';
 
+import Link from 'next/link';
 import { useMarket } from '@/store/market';
+import { fmtPrice, fmtChange, fmtCompact, cn } from '@/lib/utils';
+import type { MarketPair } from '@/lib/types';
+import { Star } from 'lucide-react';
 
-export function MarketTable({ pairs, favorites, onToggleFavorite }: any) {
+interface Props {
+  pairs: MarketPair[];
+  favorites?: Set<string>;
+  onToggleFavorite?: (symbol: string) => void;
+  compact?: boolean;
+}
+
+/** Live-updating market list. Static pair data is enriched with WS tickers. */
+export function MarketTable({ pairs, favorites, onToggleFavorite, compact }: Props) {
   const tickers = useMarket((s) => s.tickers);
-  
-  // Enhance pairs with live data
-  const enhancedPairs = pairs.map((pair: any) => {
-    const liveData = tickers[pair.symbol];
-    return {
-      ...pair,
-      price: liveData?.price || pair.price,
-      change24h: liveData?.change24h || pair.change24h,
-    };
-  });
 
   return (
-    <div className="card overflow-x-auto">
-      <table className="w-full">
-        <thead className="border-b border-border">
-          <tr className="text-left text-muted text-sm">
-            <th className="px-4 py-3">Pair</th>
-            <th className="px-4 py-3 text-right">Price</th>
-            <th className="px-4 py-3 text-right">24h Change</th>
-            <th className="px-4 py-3 text-right">Volume</th>
+    <div className="card overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-muted border-b border-border">
+            {onToggleFavorite && <th className="p-3 w-8" />}
+            <th className="p-3">Pair</th>
+            <th className="p-3 text-right">Price</th>
+            <th className="p-3 text-right">24h Change</th>
+            {!compact && <th className="p-3 text-right hidden md:table-cell">24h High</th>}
+            {!compact && <th className="p-3 text-right hidden md:table-cell">24h Volume</th>}
+            <th className="p-3 text-right">Trade</th>
           </tr>
         </thead>
         <tbody>
-          {enhancedPairs.map((pair: any) => (
-            <tr key={pair.symbol} className="border-b border-border/40 hover:bg-bg-hover">
-              <td className="px-4 py-3 font-medium">{pair.displayName}</td>
-              <td className="px-4 py-3 text-right font-mono">
-                ${pair.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <span className={pair.change24h >= 0 ? 'text-up' : 'text-down'}>
-                  {pair.change24h >= 0 ? '+' : ''}{pair.change24h}%
-                </span>
-              </td>
-              <td className="px-4 py-3 text-right text-muted">{pair.volume || '—'}</td>
-            </tr>
-          ))}
+          {pairs.map((p) => {
+            const t = tickers[p.symbol];
+            const price = t?.price ?? Number(p.lastPrice);
+            const change = t?.change24h ?? Number(p.change24h);
+            const high = t?.high24h ?? Number(p.high24h);
+            const vol = t?.volume24h ?? Number(p.volume24h);
+            const up = change >= 0;
+            
+            return (
+              <tr key={p.id} className="border-b border-border/50 hover:bg-bg-hover transition">
+                {onToggleFavorite && (
+                  <td className="p-3">
+                    <button onClick={() => onToggleFavorite(p.symbol)} aria-label="Toggle favorite">
+                      <Star
+                        size={16}
+                        className={cn(
+                          favorites?.has(p.symbol) ? 'fill-gold text-gold' : 'text-muted',
+                        )}
+                      />
+                    </button>
+                  </td>
+                )}
+                <td className="p-3">
+                  <Link href={`/trade/${p.symbol}`} className="flex items-center gap-2">
+                    <span className="font-medium">{p.displayName}</span>
+                    <span className="text-xs text-muted">{p.type}</span>
+                  </Link>
+                </td>
+                <td className="p-3 text-right tabular-nums">{fmtPrice(price, p.pricePrecision)}</td>
+                <td className={cn('p-3 text-right tabular-nums', up ? 'text-up' : 'text-down')}>
+                  {fmtChange(change)}
+                </td>
+                {!compact && (
+                  <td className="p-3 text-right tabular-nums hidden md:table-cell">
+                    {fmtPrice(high, p.pricePrecision)}
+                  </td>
+                )}
+                {!compact && (
+                  <td className="p-3 text-right tabular-nums hidden md:table-cell">
+                    {fmtCompact(vol)}
+                  </td>
+                )}
+                <td className="p-3 text-right">
+                  <Link href={`/trade/${p.symbol}`} className="text-gold hover:underline">
+                    Trade
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
