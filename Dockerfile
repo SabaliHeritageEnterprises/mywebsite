@@ -1,36 +1,46 @@
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
+
+# Install OpenSSL and Prisma dependencies
+RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY apps/api/package*.json ./apps/api/
-
-# Remove or comment out turbo.json line
-# COPY turbo.json ./
+COPY prisma ./prisma/
 
 # Install dependencies
 RUN npm ci
 
-# Copy source code
-COPY . .
+# Generate Prisma client
+RUN npx prisma generate
 
-# Build the TypeScript code
+# Copy source code
+COPY src ./src
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+
+# Build TypeScript
 RUN npm run build
 
-# Production stage
-FROM node:22-alpine
+# Production stage - Use Debian-based for better compatibility
+FROM node:22-slim
+
+# Install OpenSSL for production
+RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /app
 
-# Copy built artifacts and production dependencies
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/package*.json ./apps/api/
-COPY --from=builder /app/package*.json ./
+# Copy built artifacts
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
 
-WORKDIR /app/apps/api
+# Regenerate Prisma client for production
+RUN npx prisma generate
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+# Run migrations and start
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
