@@ -26,18 +26,18 @@ body {
   background: #2f343d;
 }
 
-/* Marquee animation for price ticker ribbon */
+/* Marquee animation for price ticker ribbon - updated for smooth scroll */
 @keyframes marquee {
   0% {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translateX(-33.33%);
   }
 }
 
 .animate-marquee {
-  animation: marquee 30s linear infinite;
+  animation: marquee 90s linear infinite;
   display: inline-block;
 }
 
