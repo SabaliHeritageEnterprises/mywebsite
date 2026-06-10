@@ -1,22 +1,51 @@
-'use client';
-
+// apps/web/src/store/market.ts
 import { create } from 'zustand';
-import type { Ticker } from '@/lib/types';
+import { liveMarketData } from '@/lib/liveMarketData';
 
-interface MarketState {
+type Ticker = {
+  symbol: string;
+  price: number;
+  change24h: number;
+  volume?: string;
+};
+
+type MarketState = {
   tickers: Record<string, Ticker>;
-  setSnapshot: (list: Ticker[]) => void;
-  upsert: (t: Ticker) => void;
-}
+  isLoading: boolean;
+  updateTicker: (symbol: string, price: number, change24h: string) => void;
+};
 
-/** Live in-memory ticker cache fed by the WebSocket snapshot stream. */
 export const useMarket = create<MarketState>((set) => ({
   tickers: {},
-  setSnapshot: (list) =>
-    set(() => {
-      const next: Record<string, Ticker> = {};
-      for (const t of list) next[t.symbol] = t;
-      return { tickers: next };
-    }),
-  upsert: (t) => set((s) => ({ tickers: { ...s.tickers, [t.symbol]: t } })),
+  isLoading: true,
+  
+  updateTicker: (symbol, price, change24h) => {
+    set((state) => ({
+      tickers: {
+        ...state.tickers,
+        [symbol]: {
+          symbol,
+          price,
+          change24h: parseFloat(change24h),
+        },
+      },
+      isLoading: false,
+    }));
+  },
 }));
+
+// Initialize WebSocket connection and update store
+if (typeof window !== 'undefined') {
+  // Connect to live data
+  liveMarketData.connectCrypto();
+  liveMarketData.connectForex();
+  
+  // Subscribe to default pairs
+  const defaultPairs = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'EURUSD', 'GBPUSD'];
+  
+  defaultPairs.forEach(symbol => {
+    liveMarketData.subscribe(symbol, (price, change24h) => {
+      useMarket.getState().updateTicker(symbol, price, change24h);
+    });
+  });
+}
