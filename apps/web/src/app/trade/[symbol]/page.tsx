@@ -206,11 +206,17 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
   if (positions.length === 0) return <p className="p-6 text-center text-muted text-sm">No open positions.</p>;
   return (
     <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Side</th><th className="p-2 text-right">Qty</th>
-        <th className="p-2 text-right">Entry</th><th className="p-2 text-right">Mark</th>
-        <th className="p-2 text-right">uPnL</th><th className="p-2 text-right">Action</th>
-      </tr></thead>
+      <thead>
+        <tr className="text-muted text-left">
+          <th className="p-2">Pair</th>
+          <th className="p-2">Side</th>
+          <th className="p-2 text-right">Qty</th>
+          <th className="p-2 text-right">Entry</th>
+          <th className="p-2 text-right">Mark</th>
+          <th className="p-2 text-right">uPnL</th>
+          <th className="p-2 text-right">Action</th>
+        </tr>
+      </thead>
       <tbody>
         {positions.map((p) => {
           const mark = p.markPrice ?? Number(p.pair.lastPrice);
@@ -225,7 +231,8 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
               <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
               <td className="p-2 text-right">
                 <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
-               </tr>
+              </td>
+            </tr>
           );
         })}
       </tbody>
@@ -237,10 +244,16 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
   if (orders.length === 0) return <p className="p-6 text-center text-muted text-sm">No open orders.</p>;
   return (
     <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
-        <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Action</th>
-      </tr></thead>
+      <thead>
+        <tr className="text-muted text-left">
+          <th className="p-2">Pair</th>
+          <th className="p-2">Type</th>
+          <th className="p-2">Side</th>
+          <th className="p-2 text-right">Price</th>
+          <th className="p-2 text-right">Qty</th>
+          <th className="p-2 text-right">Action</th>
+        </tr>
+      </thead>
       <tbody>
         {orders.map((o) => (
           <tr key={o.id} className="border-t border-border/50">
@@ -251,7 +264,8 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
             <td className="p-2 text-right tabular-nums">{o.quantity}</td>
             <td className="p-2 text-right">
               <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
-             </tr>
+            </td>
+          </tr>
         ))}
       </tbody>
     </table>
@@ -262,11 +276,17 @@ function HistoryTable({ trades }: { trades: Trade[] }) {
   if (trades.length === 0) return <p className="p-6 text-center text-muted text-sm">No trade history yet.</p>;
   return (
     <table className="w-full text-sm">
-      <thead><tr className="text-muted text-left">
-        <th className="p-2">Pair</th><th className="p-2">Type</th><th className="p-2">Side</th>
-        <th className="p-2 text-right">Price</th><th className="p-2 text-right">Qty</th>
-        <th className="p-2">Status</th><th className="p-2 text-right">Date</th>
-      </tr></thead>
+      <thead>
+        <tr className="text-muted text-left">
+          <th className="p-2">Pair</th>
+          <th className="p-2">Type</th>
+          <th className="p-2">Side</th>
+          <th className="p-2 text-right">Price</th>
+          <th className="p-2 text-right">Qty</th>
+          <th className="p-2">Status</th>
+          <th className="p-2 text-right">Date</th>
+        </tr>
+      </thead>
       <tbody>
         {trades.map((t) => (
           <tr key={t.id} className="border-t border-border/50">
@@ -277,7 +297,7 @@ function HistoryTable({ trades }: { trades: Trade[] }) {
             <td className="p-2 text-right tabular-nums">{t.quantity}</td>
             <td className="p-2 text-xs">{t.status}</td>
             <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
-           </tr>
+          </tr>
         ))}
       </tbody>
     </table>
