@@ -45,12 +45,14 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       const increaseAmount = user.balance * (randomPercent / 100);
       const newBalance = user.balance + increaseAmount;
       
-      // Update user balance in Firebase
       await updateBalance(newBalance);
       
-      // Create trade record for history
-      const tradeRecord = {
-        id: `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Add to trade history
+      await addTradeHistory({
+        id: tradeId,
         symbol: pair.symbol,
         side: side,
         type: type,
@@ -61,26 +63,25 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         status: 'FILLED',
         pnl: increaseAmount,
         percentageGain: randomPercent,
-      };
-      await addTradeHistory(tradeRecord);
+      });
       
-      // Create order record
-      const orderRecord = {
-        id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      // Add order with correct status type
+      await addOrder({
+        id: orderId,
         symbol: pair.symbol,
         side: side,
         type: type,
         price: effectivePrice,
         quantity: parseFloat(quantity),
-        status: 'FILLED',
+        status: 'FILLED' as const,
         createdAt: new Date().toISOString(),
-      };
-      await addOrder(orderRecord);
+      });
       
-      // Create position if BUY
+      // Add position if BUY
       if (side === 'BUY') {
-        const position = {
-          id: `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await addPosition({
+          id: posId,
           symbol: pair.symbol,
           side: side,
           entryPrice: effectivePrice,
@@ -89,18 +90,15 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           pnl: 0,
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
-        };
-        await addPosition(position);
+        });
       } else if (side === 'SELL') {
-        // For SELL, check if there's an open position to close
-        // This would close the corresponding BUY position
-        // For demo purposes, we'll just show a message
-        setMsg(`✓ SELL order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
+        // For SELL, we can also add a position or just log
+        console.log('SELL order executed');
       }
       
       setMsg(`✓ ${side} order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
       
-      // Also try to send to backend if available
+      // Optional backend call
       try {
         await api.post('/trades/orders', {
           symbol: pair.symbol,
@@ -112,8 +110,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           ...(takeProfit ? { takeProfit: parseFloat(takeProfit) } : {}),
         });
       } catch (e) {
-        // Ignore backend errors for demo
-        console.log('Demo mode: backend not required');
+        // Ignore backend errors
       }
       
       setQuantity('');
@@ -161,23 +158,27 @@ export function OrderPanel({ pair, onPlaced }: Props) {
 
       <div className="space-y-3">
         {type !== 'MARKET' && (
-          <Field label={`Price (${pair.quote})`}>
+          <div className="block">
+            <span className="text-xs text-muted mb-1 block">Price ({pair.quote})</span>
             <input className="input" value={price} onChange={(e) => setPrice(e.target.value)}
               placeholder={fmtPrice(lastPrice, pair.pricePrecision)} inputMode="decimal" />
-          </Field>
+          </div>
         )}
-        <Field label={`Amount (${pair.base})`}>
+        <div className="block">
+          <span className="text-xs text-muted mb-1 block">Amount ({pair.base})</span>
           <input className="input" value={quantity} onChange={(e) => setQuantity(e.target.value)}
             placeholder="0.00" inputMode="decimal" />
-        </Field>
+        </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Stop loss">
+          <div className="block">
+            <span className="text-xs text-muted mb-1 block">Stop loss</span>
             <input className="input" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder="—" inputMode="decimal" />
-          </Field>
-          <Field label="Take profit">
+          </div>
+          <div className="block">
+            <span className="text-xs text-muted mb-1 block">Take profit</span>
             <input className="input" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder="—" inputMode="decimal" />
-          </Field>
+          </div>
         </div>
 
         <div className="flex justify-between text-xs text-muted pt-1">
@@ -211,14 +212,5 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         <p className="text-[10px] text-center text-muted">Trading involves risk. Review your order before placing.</p>
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="text-xs text-muted mb-1 block">{label}</span>
-      {children}
-    </label>
   );
 }
