@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function OrderPanel({ pair, onPlaced }: Props) {
-  const { user, updateBalance, addPosition, addOrder, addTradeHistory } = useAuth();
+  const { user, updateBalance, addPosition, addOrder, addTradeHistory, loadUserData } = useAuth();
   const live = useMarket((s) => s.tickers[pair.symbol]);
   const lastPrice = live?.price ?? Number(pair.lastPrice);
 
@@ -45,13 +45,20 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       const increaseAmount = user.balance * (randomPercent / 100);
       const newBalance = user.balance + increaseAmount;
       
+      console.log('📊 Starting trade process...');
+      console.log('User ID:', user.uid);
+      console.log('Balance before:', user.balance);
+      console.log('New balance:', newBalance);
+      
+      // Update balance first
       await updateBalance(newBalance);
+      console.log('✅ Balance updated');
       
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Add to trade history
-      await addTradeHistory({
+      const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
         side: side,
@@ -63,10 +70,13 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         status: 'FILLED',
         pnl: increaseAmount,
         percentageGain: randomPercent,
-      });
+      };
+      await addTradeHistory(tradeData);
+      console.log('✅ Trade saved:', tradeId);
+      console.log('Trade data:', tradeData);
       
-      // Add order with correct status type
-      await addOrder({
+      // Add order
+      const orderData = {
         id: orderId,
         symbol: pair.symbol,
         side: side,
@@ -75,12 +85,14 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         quantity: parseFloat(quantity),
         status: 'FILLED' as const,
         createdAt: new Date().toISOString(),
-      });
+      };
+      await addOrder(orderData);
+      console.log('✅ Order saved:', orderId);
       
       // Add position if BUY
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await addPosition({
+        const positionData = {
           id: posId,
           symbol: pair.symbol,
           side: side,
@@ -90,13 +102,23 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           pnl: 0,
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
-        });
-      } else if (side === 'SELL') {
-        // For SELL, we can also add a position or just log
-        console.log('SELL order executed');
+        };
+        await addPosition(positionData);
+        console.log('✅ Position saved:', posId);
+      }
+      
+      // Reload user data to ensure UI updates
+      if (user) {
+        await loadUserData(user.uid);
+        console.log('✅ User data reloaded');
       }
       
       setMsg(`✓ ${side} order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
+      
+      // Call onPlaced callback if provided
+      if (onPlaced) {
+        onPlaced();
+      }
       
       // Optional backend call
       try {
@@ -111,12 +133,13 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         });
       } catch (e) {
         // Ignore backend errors
+        console.log('Backend not available (demo mode)');
       }
       
       setQuantity('');
       setPrice('');
-      onPlaced?.();
     } catch (e) {
+      console.error('❌ Trade error:', e);
       setMsg(apiError(e));
     } finally {
       setBusy(false);
