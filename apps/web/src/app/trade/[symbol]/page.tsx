@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { TradingViewChart } from '@/components/trading-view-chart';
@@ -8,12 +8,11 @@ import { OrderPanel } from '@/components/order-panel';
 import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
 import { fmtPrice, fmtChange, cn } from '@/lib/utils';
-import type { MarketPair, Trade, Position } from '@/lib/types';
-import type { Order, TradeRecord } from '@/store/auth';
+import type { MarketPair } from '@/lib/types';
+import type { Position, Order, TradeRecord } from '@/store/auth';
 
 type BottomTab = 'positions' | 'orders' | 'history';
 
-// CoinLore API - Real data for ALL pairs
 const COINLORE_URL = 'https://api.coinlore.net/api';
 
 export default function TradeTerminal() {
@@ -22,7 +21,7 @@ export default function TradeTerminal() {
   const symbol = String(params.symbol).toUpperCase();
   const { user } = useAuth();
   const { positions, orders, tradeHistory, closePosition, cancelOrder } = useAuth();
-  const { tickers, isLoading: marketLoading } = useMarket();
+  const { tickers } = useMarket();
 
   const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [pair, setPair] = useState<MarketPair | null>(null);
@@ -30,7 +29,6 @@ export default function TradeTerminal() {
   const [isLoading, setIsLoading] = useState(true);
   const [realPrices, setRealPrices] = useState<Record<string, { price: number; change: number; high: number; low: number; volume: number }>>({});
 
-  // Fetch real prices for ALL pairs from CoinLore API
   useEffect(() => {
     const fetchAllRealData = async () => {
       try {
@@ -81,15 +79,12 @@ export default function TradeTerminal() {
     };
     
     fetchAllRealData();
-    
     const interval = setInterval(fetchAllRealData, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Find current pair from list
   useEffect(() => {
     if (pairs.length === 0) return;
-    
     let found = pairs.find(p => p.symbol === symbol);
     if (!found) {
       const baseSymbol = symbol.replace('USD', '').replace('USDT', '');
@@ -109,19 +104,6 @@ export default function TradeTerminal() {
   const displayHigh = currentPairData?.high ?? liveTicker?.high24h ?? (pair ? parseFloat(pair.high24h) : 0);
   const displayLow = currentPairData?.low ?? liveTicker?.low24h ?? (pair ? parseFloat(pair.low24h) : 0);
   const up = displayChange >= 0;
-
-  const handleClosePosition = (id: string) => {
-    closePosition(id);
-  };
-
-  const handleCancelOrder = (id: string) => {
-    cancelOrder(id);
-  };
-
-  // Refresh data when user changes or after trades
-  useEffect(() => {
-    // This will re-render when positions/orders/tradeHistory change
-  }, [positions, orders, tradeHistory]);
 
   if (isLoading || pairs.length === 0) {
     return (
@@ -165,9 +147,7 @@ export default function TradeTerminal() {
       <main className="mx-auto max-w-[1600px] px-4 py-4 w-full flex-1">
         <div className="grid grid-cols-12 gap-4">
           <aside className="col-span-12 lg:col-span-2 card p-2 max-h-[600px] overflow-y-auto order-2 lg:order-1">
-            <div className="text-xs font-semibold text-gold px-2 py-2 border-b border-border mb-2">
-              MARKETS
-            </div>
+            <div className="text-xs font-semibold text-gold px-2 py-2 border-b border-border mb-2">MARKETS</div>
             {pairs.slice(0, 30).map((p) => {
               const pairData = realPrices[p.symbol] || realPrices[p.base];
               const pc = pairData?.change ?? (tickers[p.symbol]?.change24h ?? parseFloat(p.change24h));
@@ -198,7 +178,6 @@ export default function TradeTerminal() {
           </section>
         </div>
 
-        {/* Bottom: positions / orders / history */}
         <div className="card mt-4">
           <div className="flex gap-1 border-b border-border p-2">
             {(['positions', 'orders', 'history'] as BottomTab[]).map((t) => (
@@ -217,9 +196,9 @@ export default function TradeTerminal() {
             {!user ? (
               <p className="p-6 text-center text-muted text-sm">Log in to view your positions and orders.</p>
             ) : tab === 'positions' ? (
-              <PositionsTable positions={positions.filter(p => p.status === 'OPEN')} onClose={handleClosePosition} />
+              <PositionsTable positions={positions.filter(p => p.status === 'OPEN')} onClose={closePosition} />
             ) : tab === 'orders' ? (
-              <OrdersTable orders={orders} onCancel={handleCancelOrder} />
+              <OrdersTable orders={orders} onCancel={cancelOrder} />
             ) : (
               <HistoryTable trades={tradeHistory} />
             )}
@@ -255,7 +234,7 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
             <th className="p-2 text-right">Current</th>
             <th className="p-2 text-right">PnL</th>
             <th className="p-2 text-right">Action</th>
-          <tr>
+          </tr>
         </thead>
         <tbody>
           {positions.map((p) => {
@@ -267,9 +246,7 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
                 <td className="p-2 text-right tabular-nums">{p.quantity}</td>
                 <td className="p-2 text-right tabular-nums">{fmtPrice(p.entryPrice)}</td>
                 <td className="p-2 text-right tabular-nums">{fmtPrice(p.currentPrice)}</td>
-                <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>
-                  {fmtPrice(pnl)}
-                </td>
+                <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
                 <td className="p-2 text-right">
                   <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
                 </td>
@@ -297,7 +274,7 @@ function OrdersTable({ orders, onCancel }: { orders: Order[]; onCancel: (id: str
             <th className="p-2 text-right">Qty</th>
             <th className="p-2">Status</th>
             <th className="p-2 text-right">Action</th>
-          <tr>
+          </tr>
         </thead>
         <tbody>
           {orders.map((o) => (
@@ -346,12 +323,8 @@ function HistoryTable({ trades }: { trades: TradeRecord[] }) {
               <td className="p-2 text-right tabular-nums">{fmtPrice(t.price)}</td>
               <td className="p-2 text-right tabular-nums">{t.quantity}</td>
               <td className="p-2 text-right tabular-nums">{fmtPrice(t.total)}</td>
-              <td className="text-up text-right text-sm">
-                +{t.percentageGain}%
-              </td>
-              <td className="p-2 text-right text-xs text-muted">
-                {new Date(t.timestamp).toLocaleString()}
-              </td>
+              <td className="text-up text-right text-sm">+{t.percentageGain}%</td>
+              <td className="p-2 text-right text-xs text-muted">{new Date(t.timestamp).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
