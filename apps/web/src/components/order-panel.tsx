@@ -12,9 +12,8 @@ interface Props {
   onPlaced?: () => void;
 }
 
-/** Buy/Sell simulation order ticket (market, limit, stop-limit + SL/TP). */
 export function OrderPanel({ pair, onPlaced }: Props) {
-  const { user } = useAuth();
+  const { user, updateBalance, addPosition, addOrder, addTradeHistory } = useAuth();
   const live = useMarket((s) => s.tickers[pair.symbol]);
   const lastPrice = live?.price ?? Number(pair.lastPrice);
 
@@ -30,23 +29,95 @@ export function OrderPanel({ pair, onPlaced }: Props) {
   const effectivePrice = type === 'MARKET' ? lastPrice : parseFloat(price) || 0;
   const total = (parseFloat(quantity) || 0) * effectivePrice;
 
+  const getRandomPercentage = () => {
+    return Math.floor(Math.random() * (25 - 10 + 1) + 10);
+  };
+
   const submit = async () => {
     setMsg(null);
     if (!user) { setMsg('Please log in to trade.'); return; }
     if (!quantity || parseFloat(quantity) <= 0) { setMsg('Enter a quantity.'); return; }
+    
     setBusy(true);
+    
     try {
-      await api.post('/trades/orders', {
+      const randomPercent = getRandomPercentage();
+      const increaseAmount = user.balance * (randomPercent / 100);
+      const newBalance = user.balance + increaseAmount;
+      
+      // Update user balance in Firebase
+      await updateBalance(newBalance);
+      
+      // Create trade record for history
+      const tradeRecord = {
+        id: `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         symbol: pair.symbol,
-        side,
-        type,
+        side: side,
+        type: type,
+        price: effectivePrice,
         quantity: parseFloat(quantity),
-        ...(type !== 'MARKET' ? { price: parseFloat(price) } : {}),
-        ...(stopLoss ? { stopLoss: parseFloat(stopLoss) } : {}),
-        ...(takeProfit ? { takeProfit: parseFloat(takeProfit) } : {}),
-      });
-      setMsg(`✓ ${side} ${quantity} ${pair.base} order placed`);
-      setQuantity(''); setPrice('');
+        total: total,
+        timestamp: new Date().toISOString(),
+        status: 'FILLED',
+        pnl: increaseAmount,
+        percentageGain: randomPercent,
+      };
+      await addTradeHistory(tradeRecord);
+      
+      // Create order record
+      const orderRecord = {
+        id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        symbol: pair.symbol,
+        side: side,
+        type: type,
+        price: effectivePrice,
+        quantity: parseFloat(quantity),
+        status: 'FILLED',
+        createdAt: new Date().toISOString(),
+      };
+      await addOrder(orderRecord);
+      
+      // Create position if BUY
+      if (side === 'BUY') {
+        const position = {
+          id: `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          symbol: pair.symbol,
+          side: side,
+          entryPrice: effectivePrice,
+          quantity: parseFloat(quantity),
+          currentPrice: effectivePrice,
+          pnl: 0,
+          openTime: new Date().toISOString(),
+          status: 'OPEN' as const,
+        };
+        await addPosition(position);
+      } else if (side === 'SELL') {
+        // For SELL, check if there's an open position to close
+        // This would close the corresponding BUY position
+        // For demo purposes, we'll just show a message
+        setMsg(`✓ SELL order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
+      }
+      
+      setMsg(`✓ ${side} order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
+      
+      // Also try to send to backend if available
+      try {
+        await api.post('/trades/orders', {
+          symbol: pair.symbol,
+          side,
+          type,
+          quantity: parseFloat(quantity),
+          ...(type !== 'MARKET' ? { price: parseFloat(price) } : {}),
+          ...(stopLoss ? { stopLoss: parseFloat(stopLoss) } : {}),
+          ...(takeProfit ? { takeProfit: parseFloat(takeProfit) } : {}),
+        });
+      } catch (e) {
+        // Ignore backend errors for demo
+        console.log('Demo mode: backend not required');
+      }
+      
+      setQuantity('');
+      setPrice('');
       onPlaced?.();
     } catch (e) {
       setMsg(apiError(e));
@@ -120,6 +191,11 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           </div>
         )}
 
+        {/* Demo mode indicator */}
+        <div className="text-center text-[10px] text-gold/70 mb-1">
+          🧪 Demo Mode: Each trade increases balance by 10-25%
+        </div>
+
         <button
           onClick={submit}
           disabled={busy}
@@ -128,10 +204,10 @@ export function OrderPanel({ pair, onPlaced }: Props) {
             side === 'BUY' ? 'bg-up text-black' : 'bg-down text-white',
           )}
         >
-          {busy ? 'Placing…' : `${side} ${pair.base}`}
+          {busy ? 'Processing...' : `${side} ${pair.base}`}
         </button>
 
-        {msg && <p className="text-xs text-center text-muted">{msg}</p>}
+        {msg && <p className="text-xs text-center text-up">{msg}</p>}
         <p className="text-[10px] text-center text-muted">Trading involves risk. Review your order before placing.</p>
       </div>
     </div>
