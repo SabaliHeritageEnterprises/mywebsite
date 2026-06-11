@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import {
   doc, getDoc, setDoc, updateDoc, collection, addDoc, query, orderBy, where, limit as qlimit,
-  onSnapshot, serverTimestamp, increment, Timestamp,
+  onSnapshot, serverTimestamp, increment, Timestamp, getDocs,
 } from 'firebase/firestore';
 import { auth, db } from '@/components/firebase';
 
@@ -224,5 +224,133 @@ export async function updateUserBalance(uid: string, newBalance: number) {
   } catch (error) {
     console.error('Failed to update balance:', error);
     throw error;
+  }
+}
+
+// ── user trades storage (Firestore subcollections) ──────────────
+
+export interface UserTrade {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  type: string;
+  price: number;
+  quantity: number;
+  total: number;
+  timestamp: string;
+  status: string;
+  pnl: number;
+  percentageGain: number;
+}
+
+export interface UserPosition {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  entryPrice: number;
+  quantity: number;
+  currentPrice: number;
+  pnl: number;
+  openTime: string;
+  status: 'OPEN' | 'CLOSED';
+}
+
+export interface UserOrder {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  type: string;
+  price: number;
+  quantity: number;
+  status: 'PENDING' | 'FILLED' | 'CANCELLED';
+  createdAt: string;
+}
+
+// Save trade to user's subcollection
+export async function saveUserTrade(uid: string, trade: UserTrade) {
+  try {
+    const tradeRef = doc(collection(db, 'users', uid, 'trades'));
+    await setDoc(tradeRef, trade);
+    console.log(`✅ Trade saved for user ${uid}`);
+  } catch (error) {
+    console.error('Failed to save trade:', error);
+  }
+}
+
+// Save position to user's subcollection
+export async function saveUserPosition(uid: string, position: UserPosition) {
+  try {
+    const positionRef = doc(collection(db, 'users', uid, 'positions'));
+    await setDoc(positionRef, position);
+    console.log(`✅ Position saved for user ${uid}`);
+  } catch (error) {
+    console.error('Failed to save position:', error);
+  }
+}
+
+// Save order to user's subcollection
+export async function saveUserOrder(uid: string, order: UserOrder) {
+  try {
+    const orderRef = doc(collection(db, 'users', uid, 'orders'));
+    await setDoc(orderRef, order);
+    console.log(`✅ Order saved for user ${uid}`);
+  } catch (error) {
+    console.error('Failed to save order:', error);
+  }
+}
+
+// Load user's trades from Firestore
+export async function loadUserTrades(uid: string): Promise<UserTrade[]> {
+  try {
+    const tradesRef = collection(db, 'users', uid, 'trades');
+    const snapshot = await getDocs(tradesRef);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserTrade));
+  } catch (error) {
+    console.error('Failed to load trades:', error);
+    return [];
+  }
+}
+
+// Load user's positions from Firestore
+export async function loadUserPositions(uid: string): Promise<UserPosition[]> {
+  try {
+    const positionsRef = collection(db, 'users', uid, 'positions');
+    const snapshot = await getDocs(positionsRef);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPosition));
+  } catch (error) {
+    console.error('Failed to load positions:', error);
+    return [];
+  }
+}
+
+// Load user's orders from Firestore
+export async function loadUserOrders(uid: string): Promise<UserOrder[]> {
+  try {
+    const ordersRef = collection(db, 'users', uid, 'orders');
+    const snapshot = await getDocs(ordersRef);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserOrder));
+  } catch (error) {
+    console.error('Failed to load orders:', error);
+    return [];
+  }
+}
+
+// Update position status
+export async function updatePositionStatus(uid: string, positionId: string, status: 'OPEN' | 'CLOSED') {
+  try {
+    const positionRef = doc(db, 'users', uid, 'positions', positionId);
+    await updateDoc(positionRef, { status });
+  } catch (error) {
+    console.error('Failed to update position:', error);
+  }
+}
+
+// Update order status
+export async function updateOrderStatus(uid: string, orderId: string, status: 'PENDING' | 'FILLED' | 'CANCELLED') {
+  try {
+    const orderRef = doc(db, 'users', uid, 'orders', orderId);
+    await updateDoc(orderRef, { status });
+  } catch (error) {
+    console.error('Failed to update order:', error);
   }
 }

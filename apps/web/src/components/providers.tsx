@@ -12,6 +12,7 @@ import type { Ticker } from '@/lib/types';
 export function Providers({ children }: { children: React.ReactNode }) {
   const setUser = useAuth((s) => s.setUser);
   const setInitialized = useAuth((s) => s.setInitialized);
+  const loadUserData = useAuth((s) => s.loadUserData);
   const setSnapshot = useMarket((s) => s.setSnapshot);
 
   // Market data - receives array of Tickers, passes directly to setSnapshot
@@ -43,7 +44,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       await ensureUserDoc(fbUser);
       await markOnline(fbUser.uid, true);
 
-      unsubDoc = listenUserDoc(fbUser.uid, (u) => { setUser(u); setInitialized(true); });
+      unsubDoc = listenUserDoc(fbUser.uid, (u) => { 
+        setUser(u); 
+        setInitialized(true);
+        // Load user's trade data after user is set
+        if (u) {
+          loadUserData(u.uid);
+        }
+      });
       hb = setInterval(() => heartbeat(fbUser.uid), 20_000);
     });
 
@@ -56,7 +64,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       if (hb) clearInterval(hb);
       window.removeEventListener('beforeunload', onUnload);
     };
-  }, [setUser, setInitialized]);
+  }, [setUser, setInitialized, loadUserData]);
 
   return <>{children}</>;
 }
