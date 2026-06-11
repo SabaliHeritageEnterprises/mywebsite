@@ -89,7 +89,7 @@ export default function RegisterPage() {
             <Done email={email} />
           ) : (
             <>
-              <h2 className="text-3xl font-bold mb-7">Welcome to ApexTrade</h2>
+              <h2 className="text-3xl font-bold mb-7">Join CryptoCoin today</h2>
 
               <form onSubmit={submit} className="space-y-4">
                 <div>
