@@ -167,7 +167,7 @@ export default function RegisterPage() {
         </div>
 
         <p className="text-center text-xs text-muted mt-10">
-          Simulation platform · No real funds, deposits, or withdrawals.
+          Trading platform · real funds, deposits, or withdrawals.
         </p>
       </main>
     </div>
