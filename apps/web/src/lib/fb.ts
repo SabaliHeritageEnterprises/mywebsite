@@ -94,7 +94,7 @@ export async function ensureUserDoc(fb: FbUser, displayName?: string): Promise<v
       email: fb.email,
       displayName: displayName ?? fb.displayName ?? (fb.email?.split('@')[0] ?? 'Trader'),
       role: isSuper ? 'super_admin' : 'user',
-      balance: 0, // presentation: every new user starts at $0 until an admin funds them
+      balance: 0,
       status: 'active',
       online: true,
       createdAt: serverTimestamp(),
@@ -128,7 +128,6 @@ export async function fbLogin(email: string, password: string) {
     await recordActivity('login', { uid: cred.user.uid, email });
     return cred.user;
   } catch (e: any) {
-    // Record the failed attempt (email captured even for unknown accounts).
     await recordActivity('failed_login', { email, status: 'failed' });
     throw e;
   }
@@ -170,7 +169,7 @@ export function computeOnline(u: { online?: boolean; lastActivity?: Timestamp })
   return Date.now() - ms < 60_000;
 }
 
-// ── admin actions (also enforced server-side by firestore.rules) ─
+// ── admin actions ────────────────────────────────────────────────
 export async function adminUpdateUser(uid: string, data: Partial<AppUser>) {
   await updateDoc(doc(db, 'users', uid), data as Record<string, unknown>);
 }
@@ -209,4 +208,21 @@ export function listenUserActivity(uid: string, cb: (events: any[]) => void) {
     },
     () => cb([]),
   );
+}
+
+// ── demo trading: update user balance ────────────────────────────
+/**
+ * Update user's balance directly (for demo trading)
+ * Each user has their own independent balance that increases with trades
+ * Used by OrderPanel for Buy/Sell demo functionality
+ */
+export async function updateUserBalance(uid: string, newBalance: number) {
+  try {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, { balance: newBalance });
+    console.log(`✅ Demo trading: Balance updated for ${uid}: $${newBalance.toFixed(2)}`);
+  } catch (error) {
+    console.error('Failed to update balance:', error);
+    throw error;
+  }
 }
