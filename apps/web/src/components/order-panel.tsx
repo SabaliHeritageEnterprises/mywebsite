@@ -192,11 +192,6 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           </div>
         )}
 
-        {/* Demo mode indicator */}
-        <div className="text-center text-[10px] text-gold/70 mb-1">
-          🧪 Demo Mode: Each trade increases balance by 10-25%
-        </div>
-
         <button
           onClick={submit}
           disabled={busy}
