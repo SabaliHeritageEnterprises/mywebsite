@@ -20,15 +20,27 @@ export default function TradeTerminal() {
   const router = useRouter();
   const symbol = String(params.symbol).toUpperCase();
   const { user } = useAuth();
-  const { positions, orders, tradeHistory, closePosition, cancelOrder } = useAuth();
+  const { positions, orders, tradeHistory, closePosition, cancelOrder, loadUserData } = useAuth();
   const { tickers } = useMarket();
 
   const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [pair, setPair] = useState<MarketPair | null>(null);
   const [tab, setTab] = useState<BottomTab>('positions');
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [realPrices, setRealPrices] = useState<Record<string, { price: number; change: number; high: number; low: number; volume: number }>>({});
 
+  // Load user's trade data when user logs in
+  useEffect(() => {
+    if (user) {
+      console.log('🔄 Loading user data for:', user.uid);
+      loadUserData(user.uid).then(() => {
+        console.log('✅ User data loaded, tradeHistory length:', tradeHistory.length);
+      });
+    }
+  }, [user]);
+
+  // Fetch real prices for ALL pairs from CoinLore API
   useEffect(() => {
     const fetchAllRealData = async () => {
       try {
@@ -95,6 +107,16 @@ export default function TradeTerminal() {
     }
     setPair(found || null);
   }, [symbol, pairs]);
+
+  // Refresh user data after trade
+  const refreshUserData = async () => {
+    if (user) {
+      console.log('🔄 Refreshing user data after trade...');
+      await loadUserData(user.uid);
+      setRefreshTrigger(prev => prev + 1);
+      console.log('✅ User data refreshed, tradeHistory length:', tradeHistory.length);
+    }
+  };
 
   const currentPairData = pair ? realPrices[pair.symbol] || realPrices[pair.base] : null;
   const liveTicker = pair ? tickers[pair.symbol] : null;
@@ -174,7 +196,10 @@ export default function TradeTerminal() {
           </section>
 
           <section className="col-span-12 lg:col-span-3 order-3">
-            <OrderPanel pair={{...pair, lastPrice: displayPrice.toString()}} onPlaced={() => {}} />
+            <OrderPanel 
+              pair={{...pair, lastPrice: displayPrice.toString()}} 
+              onPlaced={refreshUserData} 
+            />
           </section>
         </div>
 

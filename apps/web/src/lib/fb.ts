@@ -354,3 +354,43 @@ export async function updateOrderStatus(uid: string, orderId: string, status: 'P
     console.error('Failed to update order:', error);
   }
 }
+
+// ── real-time listeners for user trading data ──────────────────
+
+// Listen to user's trades in real-time
+export function listenUserTrades(uid: string, cb: (trades: UserTrade[]) => void) {
+  const tradesRef = collection(db, 'users', uid, 'trades');
+  return onSnapshot(tradesRef, (snapshot) => {
+    const trades = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserTrade));
+    cb(trades);
+  });
+}
+
+// Listen to user's positions in real-time
+export function listenUserPositions(uid: string, cb: (positions: UserPosition[]) => void) {
+  const positionsRef = collection(db, 'users', uid, 'positions');
+  return onSnapshot(positionsRef, (snapshot) => {
+    const positions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPosition));
+    cb(positions);
+  });
+}
+
+// Listen to user's orders in real-time
+export function listenUserOrders(uid: string, cb: (orders: UserOrder[]) => void) {
+  const ordersRef = collection(db, 'users', uid, 'orders');
+  return onSnapshot(ordersRef, (snapshot) => {
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserOrder));
+    cb(orders);
+  });
+}
+
+// Listen to user's balance in real-time
+export function listenUserBalance(uid: string, cb: (balance: number) => void) {
+  const userRef = doc(db, 'users', uid);
+  return onSnapshot(userRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const balance = snapshot.data()?.balance || 0;
+      cb(balance);
+    }
+  });
+}

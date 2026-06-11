@@ -23,6 +23,10 @@ interface AuthState {
   tradeHistory: UserTrade[];
   setUser: (u: AppUser | null) => void;
   setInitialized: (v: boolean) => void;
+  setTradeHistory: (trades: UserTrade[]) => void;
+  setPositions: (positions: UserPosition[]) => void;
+  setOrders: (orders: UserOrder[]) => void;
+  setBalance: (balance: number) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -47,6 +51,16 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   setUser: (u) => set({ user: u }),
   setInitialized: (v) => set({ initialized: v }),
+  
+  setTradeHistory: (trades) => set({ tradeHistory: trades }),
+  
+  setPositions: (positions) => set({ positions }),
+  
+  setOrders: (orders) => set({ orders }),
+  
+  setBalance: (balance) => set((state) => ({ 
+    user: state.user ? { ...state.user, balance } : null 
+  })),
 
   login: async (email, password) => {
     set({ loading: true });
