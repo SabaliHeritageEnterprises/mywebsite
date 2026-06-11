@@ -9,6 +9,7 @@ import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
 import { fmtPrice, fmtChange, cn } from '@/lib/utils';
 import type { MarketPair, Trade, Position } from '@/lib/types';
+import type { Order, TradeRecord } from '@/store/auth';
 
 type BottomTab = 'positions' | 'orders' | 'history';
 
@@ -20,14 +21,12 @@ export default function TradeTerminal() {
   const router = useRouter();
   const symbol = String(params.symbol).toUpperCase();
   const { user } = useAuth();
+  const { positions, orders, tradeHistory, closePosition, cancelOrder } = useAuth();
   const { tickers, isLoading: marketLoading } = useMarket();
 
   const [pairs, setPairs] = useState<MarketPair[]>([]);
   const [pair, setPair] = useState<MarketPair | null>(null);
   const [tab, setTab] = useState<BottomTab>('positions');
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [orders, setOrders] = useState<Trade[]>([]);
-  const [history, setHistory] = useState<Trade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [realPrices, setRealPrices] = useState<Record<string, { price: number; change: number; high: number; low: number; volume: number }>>({});
 
@@ -111,24 +110,18 @@ export default function TradeTerminal() {
   const displayLow = currentPairData?.low ?? liveTicker?.low24h ?? (pair ? parseFloat(pair.low24h) : 0);
   const up = displayChange >= 0;
 
-  const loadUserData = useCallback(() => {
-    if (!user) return;
-    setPositions([]);
-    setOrders([]);
-    setHistory([]);
-  }, [user]);
-
-  useEffect(() => { loadUserData(); }, [loadUserData]);
-
-  const closePosition = async (id: string) => {
-    alert('Position closed (demo)');
-    loadUserData();
+  const handleClosePosition = (id: string) => {
+    closePosition(id);
   };
-  
-  const cancelOrder = async (id: string) => {
-    alert('Order cancelled (demo)');
-    loadUserData();
+
+  const handleCancelOrder = (id: string) => {
+    cancelOrder(id);
   };
+
+  // Refresh data when user changes or after trades
+  useEffect(() => {
+    // This will re-render when positions/orders/tradeHistory change
+  }, [positions, orders, tradeHistory]);
 
   if (isLoading || pairs.length === 0) {
     return (
@@ -201,10 +194,11 @@ export default function TradeTerminal() {
           </section>
 
           <section className="col-span-12 lg:col-span-3 order-3">
-            <OrderPanel pair={{...pair, lastPrice: displayPrice.toString()}} onPlaced={loadUserData} />
+            <OrderPanel pair={{...pair, lastPrice: displayPrice.toString()}} onPlaced={() => {}} />
           </section>
         </div>
 
+        {/* Bottom: positions / orders / history */}
         <div className="card mt-4">
           <div className="flex gap-1 border-b border-border p-2">
             {(['positions', 'orders', 'history'] as BottomTab[]).map((t) => (
@@ -223,11 +217,11 @@ export default function TradeTerminal() {
             {!user ? (
               <p className="p-6 text-center text-muted text-sm">Log in to view your positions and orders.</p>
             ) : tab === 'positions' ? (
-              <PositionsTable positions={positions} onClose={closePosition} />
+              <PositionsTable positions={positions.filter(p => p.status === 'OPEN')} onClose={handleClosePosition} />
             ) : tab === 'orders' ? (
-              <OrdersTable orders={orders} onCancel={cancelOrder} />
+              <OrdersTable orders={orders} onCancel={handleCancelOrder} />
             ) : (
-              <HistoryTable trades={history} />
+              <HistoryTable trades={tradeHistory} />
             )}
           </div>
         </div>
@@ -258,23 +252,24 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
             <th className="p-2">Side</th>
             <th className="p-2 text-right">Qty</th>
             <th className="p-2 text-right">Entry</th>
-            <th className="p-2 text-right">Mark</th>
-            <th className="p-2 text-right">uPnL</th>
+            <th className="p-2 text-right">Current</th>
+            <th className="p-2 text-right">PnL</th>
             <th className="p-2 text-right">Action</th>
-           </tr>
+          <tr>
         </thead>
         <tbody>
           {positions.map((p) => {
-            const mark = p.markPrice ?? Number(p.pair.lastPrice);
-            const pnl = p.unrealizedPnl ?? 0;
+            const pnl = (p.currentPrice - p.entryPrice) * p.quantity;
             return (
               <tr key={p.id} className="border-t border-border/50">
-                <td className="p-2">{p.pair.displayName}</td>
+                <td className="p-2">{p.symbol}</td>
                 <td className={cn('p-2', p.side === 'BUY' ? 'text-up' : 'text-down')}>{p.side}</td>
                 <td className="p-2 text-right tabular-nums">{p.quantity}</td>
                 <td className="p-2 text-right tabular-nums">{fmtPrice(p.entryPrice)}</td>
-                <td className="p-2 text-right tabular-nums">{fmtPrice(mark)}</td>
-                <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>{fmtPrice(pnl)}</td>
+                <td className="p-2 text-right tabular-nums">{fmtPrice(p.currentPrice)}</td>
+                <td className={cn('p-2 text-right tabular-nums', pnl >= 0 ? 'text-up' : 'text-down')}>
+                  {fmtPrice(pnl)}
+                </td>
                 <td className="p-2 text-right">
                   <button onClick={() => onClose(p.id)} className="text-gold hover:underline text-xs">Close</button>
                 </td>
@@ -287,9 +282,9 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
   );
 }
 
-function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: string) => void }) {
+function OrdersTable({ orders, onCancel }: { orders: Order[]; onCancel: (id: string) => void }) {
   if (orders.length === 0) {
-    return <p className="p-6 text-center text-muted text-sm">No open orders.</p>;
+    return <p className="p-6 text-center text-muted text-sm">No orders.</p>;
   }
   return (
     <div className="overflow-x-auto">
@@ -297,23 +292,25 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
         <thead>
           <tr className="text-muted text-left">
             <th className="p-2">Pair</th>
-            <th className="p-2">Type</th>
             <th className="p-2">Side</th>
             <th className="p-2 text-right">Price</th>
             <th className="p-2 text-right">Qty</th>
+            <th className="p-2">Status</th>
             <th className="p-2 text-right">Action</th>
-          </tr>
+          <tr>
         </thead>
         <tbody>
           {orders.map((o) => (
             <tr key={o.id} className="border-t border-border/50">
-              <td className="p-2">{o.pair.displayName}</td>
-              <td className="p-2">{o.type}</td>
+              <td className="p-2">{o.symbol}</td>
               <td className={cn('p-2', o.side === 'BUY' ? 'text-up' : 'text-down')}>{o.side}</td>
               <td className="p-2 text-right tabular-nums">{fmtPrice(o.price)}</td>
               <td className="p-2 text-right tabular-nums">{o.quantity}</td>
+              <td className="p-2 text-xs">{o.status}</td>
               <td className="p-2 text-right">
-                <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
+                {o.status === 'PENDING' && (
+                  <button onClick={() => onCancel(o.id)} className="text-down hover:underline text-xs">Cancel</button>
+                )}
               </td>
             </tr>
           ))}
@@ -323,8 +320,8 @@ function OrdersTable({ orders, onCancel }: { orders: Trade[]; onCancel: (id: str
   );
 }
 
-function HistoryTable({ trades }: { trades: Trade[] }) {
-  if (trades.length === 0) {
+function HistoryTable({ trades }: { trades: TradeRecord[] }) {
+  if (!trades || trades.length === 0) {
     return <p className="p-6 text-center text-muted text-sm">No trade history yet.</p>;
   }
   return (
@@ -333,24 +330,28 @@ function HistoryTable({ trades }: { trades: Trade[] }) {
         <thead>
           <tr className="text-muted text-left">
             <th className="p-2">Pair</th>
-            <th className="p-2">Type</th>
             <th className="p-2">Side</th>
             <th className="p-2 text-right">Price</th>
             <th className="p-2 text-right">Qty</th>
-            <th className="p-2">Status</th>
-            <th className="p-2 text-right">Date</th>
+            <th className="p-2 text-right">Total</th>
+            <th className="p-2 text-right">Gain</th>
+            <th className="p-2">Date</th>
           </tr>
         </thead>
         <tbody>
           {trades.map((t) => (
             <tr key={t.id} className="border-t border-border/50">
-              <td className="p-2">{t.pair.displayName}</td>
-              <td className="p-2">{t.type}</td>
+              <td className="p-2">{t.symbol}</td>
               <td className={cn('p-2', t.side === 'BUY' ? 'text-up' : 'text-down')}>{t.side}</td>
-              <td className="p-2 text-right tabular-nums">{fmtPrice(t.filledPrice ?? t.price)}</td>
+              <td className="p-2 text-right tabular-nums">{fmtPrice(t.price)}</td>
               <td className="p-2 text-right tabular-nums">{t.quantity}</td>
-              <td className="p-2 text-xs">{t.status}</td>
-              <td className="p-2 text-right text-xs text-muted">{new Date(t.createdAt).toLocaleString()}</td>
+              <td className="p-2 text-right tabular-nums">{fmtPrice(t.total)}</td>
+              <td className="text-up text-right text-sm">
+                +{t.percentageGain}%
+              </td>
+              <td className="p-2 text-right text-xs text-muted">
+                {new Date(t.timestamp).toLocaleString()}
+              </td>
             </tr>
           ))}
         </tbody>
