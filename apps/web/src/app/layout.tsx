@@ -5,7 +5,8 @@ import { Providers } from '@/components/providers';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
-const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? 'ApexTrade';
+// Change this line from 'ApexTrade' to 'CryptoCoin'
+const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? 'CryptoCoin';
 
 export const metadata: Metadata = {
   title: {
