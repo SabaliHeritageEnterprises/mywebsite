@@ -9,9 +9,10 @@ import {
   listenUsers, listenActivity, adminUpdateUser, adminAdjustBalance, computeOnline, isAdmin,
   type AppUser,
 } from '@/lib/fb';
-import { LineChart, Users, Activity, Circle } from 'lucide-react';
+import { LineChart, Users, Activity, Circle, MessageCircle } from 'lucide-react';
+import AdminChat from './chat/page';
 
-type Tab = 'overview' | 'users' | 'activity';
+type Tab = 'overview' | 'users' | 'activity' | 'chat';
 const LAST_VIEWED_KEY = 'apex_admin_activity_lastViewed';
 const fmtUsd = (n: number) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const tsToDate = (t: any): Date | null => t?.toDate?.() ?? null;
@@ -68,6 +69,7 @@ export default function AdminPage() {
     { key: 'overview', label: 'Overview', icon: LineChart },
     { key: 'users', label: 'User Management', icon: Users },
     { key: 'activity', label: 'Recent User Activity', icon: Activity, badge: newLogins, onClick: openActivity },
+    { key: 'chat', label: 'Support Chat', icon: MessageCircle },
   ];
 
   return (
@@ -95,6 +97,7 @@ export default function AdminPage() {
         {tab === 'overview' && <OverviewTab users={users} activity={activity} onlineMap={onlineMap} />}
         {tab === 'users' && <UsersTab users={users} onlineMap={onlineMap} canSuper={user.role === 'super_admin'} />}
         {tab === 'activity' && <ActivityTab activity={activity} onlineMap={onlineMap} />}
+        {tab === 'chat' && <AdminChat />}
       </main>
     </div>
   );
