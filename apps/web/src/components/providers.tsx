@@ -11,6 +11,7 @@ import {
   listenUserTrades, listenUserPositions, listenUserOrders, listenUserBalance
 } from '@/lib/fb';
 import type { Ticker } from '@/lib/types';
+import { ChatProvider, ChatWidget } from '@/components/chat';  // ← ADD THIS
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const setUser = useAuth((s) => s.setUser);
@@ -110,5 +111,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
   }, [setUser, setInitialized, setTradeHistory, setPositions, setOrders, setBalance]);
 
-  return <>{children}</>;
+  // Wrap everything with ChatProvider and add ChatWidget
+  return (
+    <ChatProvider>
+      {children}
+      <ChatWidget />
+    </ChatProvider>
+  );
 }

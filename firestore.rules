@@ -26,6 +26,25 @@ service cloud.firestore {
       return request.auth.token.email == 'admin@apextrade.local';
     }
 
+    // ── CHAT RULES ──────────────────────────────────────────────
+    match /chats/{messageId} {
+      // Anyone signed in can send a message
+      allow create: if signedIn();
+      
+      // Users can read their own messages AND support messages
+      allow read: if signedIn() && 
+        (resource.data.uid == request.auth.uid || 
+         resource.data.type == 'support');
+      
+      // Users can mark their own messages as read (only update the 'read' field)
+      allow update: if signedIn() && 
+        request.auth.uid == resource.data.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      
+      // No one can delete chat messages (keep history)
+      allow delete: if false;
+    }
+
     // ── users ────────────────────────────────────────────────────
     match /users/{uid} {
       // A user can read their own doc; admins can read everyone.

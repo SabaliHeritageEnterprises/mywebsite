@@ -1,13 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { auth, db } from '@/lib/firebase';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  addDoc, 
+import { auth, db } from './firebase';
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
   serverTimestamp,
   where,
   getDocs,
@@ -15,6 +15,7 @@ import {
   doc
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
+import { getUserDoc, AppUser } from '@/lib/fb';
 
 interface ChatMessage {
   id: string;
@@ -37,21 +38,29 @@ interface ChatContextType {
   openChat: () => void;
   closeChat: () => void;
   user: User | null;
+  appUser: AppUser | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  // Use existing Firebase auth
+  // Use your existing Firebase auth
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setUser(user);
+      if (user) {
+        const userData = await getUserDoc(user.uid);
+        setAppUser(userData);
+      } else {
+        setAppUser(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -78,7 +87,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const msg = { id: doc.id, ...data } as ChatMessage;
         newMessages.push(msg);
 
-        // Count unread support messages for this user
         if (data.type === 'support' && data.uid === user.uid && !data.read) {
           unread++;
         }
@@ -105,10 +113,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!user) throw new Error('Please log in to chat');
     if (!text.trim()) return;
 
+    const displayName = appUser?.displayName || user.displayName || user.email?.split('@')[0] || 'Trader';
+
     await addDoc(collection(db, 'chats'), {
       uid: user.uid,
       email: user.email || 'anonymous',
-      displayName: user.displayName || user.email?.split('@')[0] || 'Trader',
+      displayName: displayName,
       text: text.trim(),
       timestamp: serverTimestamp(),
       read: false,
@@ -155,6 +165,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         openChat,
         closeChat,
         user,
+        appUser,
       }}
     >
       {children}
