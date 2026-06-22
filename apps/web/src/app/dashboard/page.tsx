@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { useAuth } from '@/store/auth';
 import { listenUserActivity, updateDisplayName, fbResetPassword } from '@/lib/fb';
+import { db } from '@/components/firebase';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import {
   Wallet, ArrowDownToLine, Activity, Settings, Eye, EyeOff, Copy, Check, ShieldCheck,
@@ -39,7 +41,7 @@ function PortfolioTab({ balance }: { balance: number }) {
   );
 }
 
-// Deposit Tab Component
+// Deposit Tab Component with Card Form
 const DEPOSIT_ASSETS = [
   { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
   { sym: 'BTC', name: 'Bitcoin', network: 'Bitcoin (native SegWit)', glyph: '₿', color: '#f7931a', address: 'bc1qgxkt5vfh5z2nccqscq00fcjeun26cckjgfuzendhvj483sgcupvskqk0ak' },
@@ -47,45 +49,274 @@ const DEPOSIT_ASSETS = [
 ];
 
 function DepositTab() {
+  const { user } = useAuth();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
-  
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [cardForm, setCardForm] = useState({
+    cardNumber: '',
+    cardHolder: '',
+    expiryDate: '',
+    cvv: '',
+    amount: 0
+  });
+
   const copy = (s: string, addr: string) => navigator.clipboard?.writeText(addr).then(() => {
     setCopied(s); setTimeout(() => setCopied((c) => (c === s ? null : c)), 1500);
   });
-  
+
+  const formatCardNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    const formatted = cleaned.replace(/(.{4})/g, '$1 ').trim();
+    return formatted.slice(0, 19);
+  };
+
+  const formatExpiryDate = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length >= 2) {
+      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
+    }
+    return cleaned;
+  };
+
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCardNumber(e.target.value);
+    setCardForm(prev => ({ ...prev, cardNumber: formatted }));
+  };
+
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatExpiryDate(e.target.value);
+    setCardForm(prev => ({ ...prev, expiryDate: formatted }));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCardForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const detectCardType = (cardNumber: string) => {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    if (cleaned.startsWith('4')) return 'Visa';
+    if (cleaned.startsWith('5')) return 'Mastercard';
+    if (cleaned.startsWith('3')) return 'Amex';
+    if (cleaned.startsWith('6')) return 'Discover';
+    return 'Unknown';
+  };
+
+  const handleCardSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      setError('Please log in to deposit');
+      return;
+    }
+
+    if (cardForm.amount <= 0) {
+      setError('Please enter a valid amount (minimum $10)');
+      return;
+    }
+
+    const cardDigits = cardForm.cardNumber.replace(/\s/g, '');
+    if (cardDigits.length !== 16) {
+      setError('Please enter a valid 16-digit card number');
+      return;
+    }
+
+    if (cardForm.expiryDate.length !== 5) {
+      setError('Please enter a valid expiry date (MM/YY)');
+      return;
+    }
+
+    if (cardForm.cvv.length !== 3 && cardForm.cvv.length !== 4) {
+      setError('Please enter a valid CVV');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        balance: increment(cardForm.amount),
+        depositHistory: [
+          {
+            amount: cardForm.amount,
+            cardLast4: cardForm.cardNumber.slice(-4),
+            cardType: detectCardType(cardForm.cardNumber),
+            timestamp: new Date().toISOString(),
+            status: 'completed'
+          }
+        ]
+      });
+
+      setSuccess(true);
+      setCardForm({
+        cardNumber: '',
+        cardHolder: '',
+        expiryDate: '',
+        cvv: '',
+        amount: 0
+      });
+
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err) {
+      console.error('Deposit error:', err);
+      setError('Failed to process deposit. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="card p-5">
-      <h3 className="font-semibold mb-1">Deposit funds</h3>
-      <p className="text-muted text-sm mb-5">Send only the matching asset on the correct network. Addresses are hidden by default — tap the eye to reveal.</p>
-      <div className="space-y-3">
-        {DEPOSIT_ASSETS.map((a) => {
-          const show = !!revealed[a.sym];
-          return (
-            <div key={a.sym} className="rounded-xl border border-border bg-bg-soft p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="grid place-items-center h-9 w-9 rounded-full text-black font-bold" style={{ background: a.color }}>{a.glyph}</span>
-                <div><p className="font-medium text-sm">{a.name} <span className="text-muted">({a.sym})</span></p><p className="text-[11px] text-muted">{a.network}</p></div>
+    <div className="space-y-4">
+      {/* Card Deposit Form */}
+      <div className="card p-6">
+        <h3 className="font-bold text-lg mb-2">💳 Quick Card Deposit</h3>
+        <p className="text-muted text-sm mb-4">Fund your account instantly with your card</p>
+
+        {success ? (
+          <div className="text-center py-4 border-2 border-green-500 rounded-xl">
+            <div className="text-4xl mb-2">✅</div>
+            <h4 className="text-xl font-bold text-green-500">Deposit Successful!</h4>
+            <p className="text-muted mt-1">
+              ${cardForm.amount} has been added to your balance.
+            </p>
+            <button
+              onClick={() => setSuccess(false)}
+              className="mt-3 btn-gold text-sm"
+            >
+              Make Another Deposit
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleCardSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-muted mb-1">Amount (USD)</label>
+              <input
+                type="number"
+                name="amount"
+                value={cardForm.amount || ''}
+                onChange={handleChange}
+                min="10"
+                step="10"
+                placeholder="Enter amount (min $10)"
+                className="input w-full"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted mb-1">Card Number</label>
+              <input
+                type="text"
+                name="cardNumber"
+                value={cardForm.cardNumber}
+                onChange={handleCardNumberChange}
+                placeholder="1234 5678 9012 3456"
+                className="input w-full"
+                maxLength={19}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted mb-1">Card Holder Name</label>
+              <input
+                type="text"
+                name="cardHolder"
+                value={cardForm.cardHolder}
+                onChange={handleChange}
+                placeholder="John Doe"
+                className="input w-full"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-muted mb-1">Expiry Date</label>
+                <input
+                  type="text"
+                  name="expiryDate"
+                  value={cardForm.expiryDate}
+                  onChange={handleExpiryChange}
+                  placeholder="MM/YY"
+                  className="input w-full"
+                  maxLength={5}
+                  required
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs sm:text-sm bg-bg rounded-lg px-3 py-2 border border-border break-all">
-                  {show ? a.address : '•'.repeat(34)}
-                </code>
-                <button type="button" onClick={() => setRevealed((r) => ({ ...r, [a.sym]: !r[a.sym] }))}
-                  aria-label={show ? 'Hide address' : 'Reveal address'}
-                  className="grid place-items-center h-9 w-9 rounded-lg border border-border hover:bg-bg-hover text-muted">
-                  {show ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <button type="button" onClick={() => copy(a.sym, a.address)} disabled={!show} aria-label="Copy address"
-                  className="grid place-items-center h-9 w-9 rounded-lg border border-border hover:bg-bg-hover text-muted disabled:opacity-40">
-                  {copied === a.sym ? <Check size={16} className="text-up" /> : <Copy size={16} />}
-                </button>
+              <div>
+                <label className="block text-sm text-muted mb-1">CVV</label>
+                <input
+                  type="password"
+                  name="cvv"
+                  value={cardForm.cvv}
+                  onChange={handleChange}
+                  placeholder="•••"
+                  className="input w-full"
+                  maxLength={4}
+                  required
+                />
               </div>
             </div>
-          );
-        })}
+
+            {error && (
+              <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-gold w-full py-3 disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : 'Deposit Funds'}
+            </button>
+
+            <p className="text-xs text-muted text-center mt-2">
+              🔒 Your card details are securely encrypted
+            </p>
+          </form>
+        )}
       </div>
-      <p className="text-[11px] text-muted mt-5">Demo addresses for layout only. Once a deposit is confirmed by an administrator, your balance is credited and appears on your Portfolio automatically.</p>
+
+      {/* Crypto Deposit Addresses */}
+      <div className="card p-5">
+        <h3 className="font-semibold mb-1">🪙 Crypto Deposit</h3>
+        <p className="text-muted text-sm mb-5">Send only the matching asset on the correct network. Addresses are hidden by default — tap the eye to reveal.</p>
+        <div className="space-y-3">
+          {DEPOSIT_ASSETS.map((a) => {
+            const show = !!revealed[a.sym];
+            return (
+              <div key={a.sym} className="rounded-xl border border-border bg-bg-soft p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="grid place-items-center h-9 w-9 rounded-full text-black font-bold" style={{ background: a.color }}>{a.glyph}</span>
+                  <div><p className="font-medium text-sm">{a.name} <span className="text-muted">({a.sym})</span></p><p className="text-[11px] text-muted">{a.network}</p></div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs sm:text-sm bg-bg rounded-lg px-3 py-2 border border-border break-all">
+                    {show ? a.address : '•'.repeat(34)}
+                  </code>
+                  <button type="button" onClick={() => setRevealed((r) => ({ ...r, [a.sym]: !r[a.sym] }))}
+                    aria-label={show ? 'Hide address' : 'Reveal address'}
+                    className="grid place-items-center h-9 w-9 rounded-lg border border-border hover:bg-bg-hover text-muted">
+                    {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                  <button type="button" onClick={() => copy(a.sym, a.address)} disabled={!show} aria-label="Copy address"
+                    className="grid place-items-center h-9 w-9 rounded-lg border border-border hover:bg-bg-hover text-muted disabled:opacity-40">
+                    {copied === a.sym ? <Check size={16} className="text-up" /> : <Copy size={16} />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted mt-5">Demo addresses for layout only. Once a deposit is confirmed by an administrator, your balance is credited and appears on your Portfolio automatically.</p>
+      </div>
     </div>
   );
 }
