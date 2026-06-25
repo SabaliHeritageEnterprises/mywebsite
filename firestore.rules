@@ -32,9 +32,12 @@ service cloud.firestore {
       allow create: if signedIn();
       
       // Users can read their own messages AND support messages
-      allow read: if signedIn() && 
-        (resource.data.uid == request.auth.uid || 
-         resource.data.type == 'support');
+      // ADMINS CAN READ ALL MESSAGES
+      allow read: if signedIn() && (
+        isAdmin() ||
+        resource.data.uid == request.auth.uid || 
+        resource.data.type == 'support'
+      );
       
       // Users can mark their own messages as read (only update the 'read' field)
       allow update: if signedIn() && 
