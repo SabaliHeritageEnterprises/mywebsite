@@ -58,6 +58,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (user) {
         const userData = await getUserDoc(user.uid);
         setAppUser(userData);
+        console.log('👤 ChatProvider: User loaded:', user.uid, 'AppUser:', userData?.displayName);
       } else {
         setAppUser(null);
       }
@@ -68,41 +69,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Listen for messages in real-time from Firestore
   useEffect(() => {
     if (!user) {
+      console.log('🟡 ChatProvider: No user, clearing messages');
       setMessages([]);
       setUnreadCount(0);
       return;
     }
+
+    console.log('🟡 ChatProvider: Setting up listener for user:', user.uid);
 
     const q = query(
       collection(db, 'chats'),
       orderBy('timestamp', 'asc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newMessages: ChatMessage[] = [];
-      let unread = 0;
+    const unsubscribe = onSnapshot(
+      q, 
+      (snapshot) => {
+        console.log('📨 ChatProvider: Snapshot received! Size:', snapshot.size);
+        const newMessages: ChatMessage[] = [];
+        let unread = 0;
 
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const msg = { id: doc.id, ...data } as ChatMessage;
-        newMessages.push(msg);
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const msg = { id: doc.id, ...data } as ChatMessage;
+          newMessages.push(msg);
+          console.log('📄 Message:', msg.text?.slice(0, 30), 'Type:', msg.type, 'UID:', msg.uid);
+        });
 
-        if (data.type === 'support' && data.uid === user.uid && !data.read) {
-          unread++;
+        console.log('📨 ChatProvider: Total messages:', newMessages.length);
+        setMessages(newMessages);
+        setUnreadCount(unread);
+
+        if (isOpen && unread > 0) {
+          markAsRead();
         }
-      });
-
-      setMessages(newMessages);
-      setUnreadCount(unread);
-
-      if (isOpen && unread > 0) {
-        markAsRead();
+      },
+      (error) => {
+        console.error('❌ ChatProvider: Error in snapshot listener:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
       }
-    });
+    );
 
     unsubscribeRef.current = unsubscribe;
 
     return () => {
+      console.log('🧹 ChatProvider: Cleaning up listener');
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
@@ -110,20 +122,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [user, isOpen]);
 
   const sendMessage = async (text: string) => {
-    if (!user) throw new Error('Please log in to chat');
-    if (!text.trim()) return;
+    if (!user) {
+      console.error('❌ ChatProvider: No user logged in');
+      throw new Error('Please log in to chat');
+    }
+    if (!text.trim()) {
+      console.error('❌ ChatProvider: Empty message');
+      return;
+    }
 
     const displayName = appUser?.displayName || user.displayName || user.email?.split('@')[0] || 'Trader';
+    console.log('📤 ChatProvider: Sending message:', { uid: user.uid, displayName, text: text.trim() });
 
-    await addDoc(collection(db, 'chats'), {
-      uid: user.uid,
-      email: user.email || 'anonymous',
-      displayName: displayName,
-      text: text.trim(),
-      timestamp: serverTimestamp(),
-      read: false,
-      type: 'user'
-    });
+    try {
+      const docRef = await addDoc(collection(db, 'chats'), {
+        uid: user.uid,
+        email: user.email || 'anonymous',
+        displayName: displayName,
+        text: text.trim(),
+        timestamp: serverTimestamp(),
+        read: false,
+        type: 'user'
+      });
+      console.log('✅ ChatProvider: Message sent with ID:', docRef.id);
+    } catch (error) {
+      console.error('❌ ChatProvider: Error sending message:', error);
+      throw error;
+    }
   };
 
   const markAsRead = async () => {
@@ -144,8 +169,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       await Promise.all(updates);
       setUnreadCount(0);
+      console.log('✅ ChatProvider: Marked messages as read');
     } catch (error) {
-      console.error('Error marking messages as read:', error);
+      console.error('❌ ChatProvider: Error marking messages as read:', error);
     }
   };
 

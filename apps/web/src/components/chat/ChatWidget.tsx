@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from './ChatProvider';
 
 export function ChatWidget() {
-  const { user, isOpen, toggleChat, unreadCount } = useChat();
+  const { user, isOpen, toggleChat, unreadCount, messages } = useChat();
+
+  console.log('💬 ChatWidget: Rendering with messages:', messages.length, 'user:', user?.uid);
 
   // Only show chat to logged-in users
   if (!user) return null;
@@ -37,6 +39,8 @@ function ChatWindow() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  console.log('💬 ChatWindow: Rendering with', messages.length, 'messages');
 
   // Mark messages as read when window opens
   useEffect(() => {
@@ -71,6 +75,13 @@ function ChatWindow() {
   // Get user display name
   const userDisplayName = appUser?.displayName || user?.displayName || user?.email?.split('@')[0] || 'You';
 
+  // Filter messages to show only user's messages and support replies
+  const userMessages = messages.filter(msg => 
+    msg.uid === user?.uid || msg.type === 'support'
+  );
+
+  console.log('💬 ChatWindow: User messages after filter:', userMessages.length);
+
   return (
     <div className="fixed bottom-24 right-6 z-50 w-96 max-h-[540px] bg-[#15181d] rounded-2xl border border-[#23272f] shadow-2xl flex flex-col overflow-hidden">
       {/* Header */}
@@ -96,17 +107,17 @@ function ChatWindow() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 max-h-[340px] min-h-[300px]">
-        {messages.length === 0 ? (
+        {userMessages.length === 0 ? (
           <div className="text-center text-gray-500 text-sm py-8">
             No messages yet. Start a conversation!
           </div>
         ) : (
-          messages.slice(-50).map((msg) => {
+          userMessages.slice(-50).map((msg) => {
             const isSupport = msg.type === 'support';
             const isOwn = msg.uid === user?.uid;
             const align = isSupport ? 'items-start' : 'items-end';
-            const bg = isSupport ? 'bg-[#23272f]' : 'bg-yellow-500';
-            const textColor = isSupport ? 'text-white' : 'text-black';
+            const bg = isSupport ? 'bg-[#23272f]' : isOwn ? 'bg-yellow-500' : 'bg-gray-600';
+            const textColor = isSupport ? 'text-white' : isOwn ? 'text-black' : 'text-white';
             const sender = isSupport ? 'Support' : (msg.displayName || 'You');
             const time = msg.timestamp?.toDate?.() || new Date();
 
