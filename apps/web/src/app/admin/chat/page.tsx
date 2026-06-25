@@ -36,12 +36,14 @@ export default function AdminChat() {
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((user) => {
+      console.log('👤 Auth state changed:', user?.email);
       setUser(user);
       if (user) {
         const checkAdminStatus = async () => {
           try {
             const userDoc = await getDoc(doc(db, 'users', user.uid));
             const userData = userDoc.data();
+            console.log('👤 User role:', userData?.role);
             setIsAdmin(userData?.role === 'admin' || userData?.role === 'super_admin');
           } catch (error) {
             console.error('Error checking admin status:', error);
@@ -59,23 +61,40 @@ export default function AdminChat() {
   }, []);
 
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    if (!user || !isAdmin) {
+      console.log('⛔ Not listening: user=', !!user, 'isAdmin=', isAdmin);
+      return;
+    }
+
+    console.log('🔍 Setting up Firestore listener for chats...');
 
     const q = query(
       collection(db, 'chats'),
       orderBy('timestamp', 'asc')
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        msgs.push({ id: doc.id, ...data } as Message);
-      });
-      setMessages(msgs);
-    });
+    const unsub = onSnapshot(
+      q, 
+      (snapshot) => {
+        console.log('📨 Snapshot received! Size:', snapshot.size);
+        const msgs: Message[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          console.log('📄 Document data:', data);
+          msgs.push({ id: doc.id, ...data } as Message);
+        });
+        console.log('📨 Total messages:', msgs.length);
+        setMessages(msgs);
+      },
+      (error) => {
+        console.error('❌ Snapshot listener error:', error);
+      }
+    );
 
-    return () => unsub();
+    return () => {
+      console.log('🧹 Cleaning up chat listener');
+      unsub();
+    };
   }, [user, isAdmin]);
 
   const handleReply = async (e: React.FormEvent) => {
@@ -83,7 +102,7 @@ export default function AdminChat() {
     if (!input.trim() || !user) return;
 
     try {
-      await addDoc(collection(db, 'chats'), {
+      const docRef = await addDoc(collection(db, 'chats'), {
         uid: user.uid,
         email: user.email || 'support@apextrade.com',
         displayName: 'Support',
@@ -92,6 +111,7 @@ export default function AdminChat() {
         read: false,
         type: 'support'
       });
+      console.log('✅ Reply sent, ID:', docRef.id);
       setInput('');
     } catch (error) {
       console.error('Error sending reply:', error);
@@ -112,6 +132,7 @@ export default function AdminChat() {
         updateDoc(doc(db, 'chats', docSnap.id), { read: true })
       );
       await Promise.all(updates);
+      console.log(`✅ Marked ${updates.length} messages as read for user ${userId}`);
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
