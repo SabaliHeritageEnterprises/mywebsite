@@ -9,10 +9,11 @@ import {
   listenUsers, listenActivity, adminUpdateUser, adminAdjustBalance, computeOnline, isAdmin,
   type AppUser,
 } from '@/lib/fb';
-import { LineChart, Users, Activity, Circle, MessageCircle } from 'lucide-react';
+import { LineChart, Users, Activity, Circle, MessageCircle, Shield } from 'lucide-react';
 import AdminChat from './chat/page';
+import AdminKYC from './kyc/page';
 
-type Tab = 'overview' | 'users' | 'activity' | 'chat';
+type Tab = 'overview' | 'users' | 'activity' | 'chat' | 'kyc';
 const LAST_VIEWED_KEY = 'apex_admin_activity_lastViewed';
 const fmtUsd = (n: number) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const tsToDate = (t: any): Date | null => t?.toDate?.() ?? null;
@@ -69,6 +70,7 @@ export default function AdminPage() {
     { key: 'users', label: 'User Management', icon: Users },
     { key: 'activity', label: 'Recent User Activity', icon: Activity, badge: newLogins, onClick: openActivity },
     { key: 'chat', label: 'Support Chat', icon: MessageCircle },
+    { key: 'kyc', label: 'KYC Verification', icon: Shield },
   ];
 
   return (
@@ -97,6 +99,7 @@ export default function AdminPage() {
         {tab === 'users' && <UsersTab users={users} onlineMap={onlineMap} canSuper={user.role === 'super_admin'} />}
         {tab === 'activity' && <ActivityTab activity={activity} onlineMap={onlineMap} />}
         {tab === 'chat' && <AdminChat />}
+        {tab === 'kyc' && <AdminKYC />}
       </main>
     </div>
   );

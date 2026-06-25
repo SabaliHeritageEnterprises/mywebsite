@@ -9,10 +9,11 @@ import { db } from '@/components/firebase';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import {
-  Wallet, ArrowDownToLine, Activity, Settings, Eye, EyeOff, Copy, Check, ShieldCheck,
+  Wallet, ArrowDownToLine, Activity, Settings, Eye, EyeOff, Copy, Check, ShieldCheck, Shield,
 } from 'lucide-react';
+import KYCForm from '@/components/KYCForm';
 
-type Tab = 'portfolio' | 'deposit' | 'activity' | 'settings';
+type Tab = 'portfolio' | 'deposit' | 'activity' | 'settings' | 'kyc';
 
 function fmtUsd(n: number) {
   return Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -392,6 +393,7 @@ export default function DashboardPage() {
     { key: 'portfolio', label: 'Portfolio', icon: Wallet },
     { key: 'deposit', label: 'Deposit', icon: ArrowDownToLine },
     { key: 'activity', label: 'Activity', icon: Activity },
+    { key: 'kyc', label: 'Verification', icon: Shield },
     { key: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -418,6 +420,7 @@ export default function DashboardPage() {
           {tab === 'portfolio' && <PortfolioTab balance={user.balance ?? 0} />}
           {tab === 'deposit' && <DepositTab />}
           {tab === 'activity' && <ActivityTab uid={user.uid} />}
+          {tab === 'kyc' && <KYCForm />}
           {tab === 'settings' && <SettingsTab uid={user.uid} email={user.email} name={user.displayName} />}
         </section>
       </main>
