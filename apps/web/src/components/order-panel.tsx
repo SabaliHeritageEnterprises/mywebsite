@@ -5,6 +5,8 @@ import { api, apiError } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
 import { fmtPrice, cn } from '@/lib/utils';
+import { saveUserTrade, saveUserPosition, saveUserOrder, updateUserBalance } from '@/lib/fb';
+import { auth } from '@/components/firebase';
 import type { MarketPair, OrderSide, OrderType } from '@/lib/types';
 
 interface Props {
@@ -50,14 +52,18 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       console.log('Balance before:', user.balance);
       console.log('New balance:', newBalance);
       
-      // Update balance first
+      // ─── 1. UPDATE BALANCE IN FIRESTORE ────────────────────────────
+      await updateUserBalance(user.uid, newBalance);
+      console.log('✅ Balance updated in Firestore');
+      
+      // Also update local state
       await updateBalance(newBalance);
-      console.log('✅ Balance updated');
+      console.log('✅ Balance updated in local state');
       
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Add to trade history
+      // ─── 2. SAVE TRADE TO FIRESTORE ────────────────────────────────
       const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
@@ -71,11 +77,16 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         pnl: increaseAmount,
         percentageGain: randomPercent,
       };
-      await addTradeHistory(tradeData);
-      console.log('✅ Trade saved:', tradeId);
-      console.log('Trade data:', tradeData);
       
-      // Add order
+      // Save to Firestore
+      await saveUserTrade(user.uid, tradeData);
+      console.log('✅ Trade saved to Firestore:', tradeId);
+      
+      // Also save to local state
+      await addTradeHistory(tradeData);
+      console.log('✅ Trade saved to local state');
+      
+      // ─── 3. SAVE ORDER TO FIRESTORE ────────────────────────────────
       const orderData = {
         id: orderId,
         symbol: pair.symbol,
@@ -86,10 +97,16 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         status: 'FILLED' as const,
         createdAt: new Date().toISOString(),
       };
-      await addOrder(orderData);
-      console.log('✅ Order saved:', orderId);
       
-      // Add position if BUY
+      // Save to Firestore
+      await saveUserOrder(user.uid, orderData);
+      console.log('✅ Order saved to Firestore:', orderId);
+      
+      // Also save to local state
+      await addOrder(orderData);
+      console.log('✅ Order saved to local state');
+      
+      // ─── 4. SAVE POSITION TO FIRESTORE (if BUY) ────────────────────
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const positionData = {
@@ -103,15 +120,19 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
         };
+        
+        // Save to Firestore
+        await saveUserPosition(user.uid, positionData);
+        console.log('✅ Position saved to Firestore:', posId);
+        
+        // Also save to local state
         await addPosition(positionData);
-        console.log('✅ Position saved:', posId);
+        console.log('✅ Position saved to local state');
       }
       
-      // Reload user data to ensure UI updates
-      if (user) {
-        await loadUserData(user.uid);
-        console.log('✅ User data reloaded');
-      }
+      // ─── 5. RELOAD USER DATA ──────────────────────────────────────
+      await loadUserData(user.uid);
+      console.log('✅ User data reloaded');
       
       setMsg(`✓ ${side} order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
       

@@ -39,6 +39,12 @@ service cloud.firestore {
         resource.data.type == 'support'
       );
       
+      // Allow users to query the collection (list their messages)
+      allow list: if signedIn() && (
+        isAdmin() ||
+        request.auth.uid != null
+      );
+      
       // Users can mark their own messages as read (only update the 'read' field)
       allow update: if signedIn() && 
         request.auth.uid == resource.data.uid &&
