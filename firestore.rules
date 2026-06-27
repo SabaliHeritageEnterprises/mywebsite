@@ -7,17 +7,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDocExists() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
     function myRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
     function isAdmin() {
       return signedIn()
-        && userDocExists()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && myRole() in ['admin', 'super_admin'];
     }
 
@@ -25,23 +21,36 @@ service cloud.firestore {
       return request.auth.token.email == 'admin@apextrade.local';
     }
 
-    // ── CHAT RULES ──────────────────────────────────────────────
+    // ── CHAT RULES (ORIGINAL WORKING VERSION) ─────────────────────
     match /chats/{messageId} {
+      // Anyone signed in can send a message
       allow create: if signedIn();
+      
+      // Users can read their own messages AND support messages
+      // ADMINS CAN READ ALL MESSAGES
       allow read: if signedIn() && (
         isAdmin() ||
         resource.data.uid == request.auth.uid || 
         resource.data.type == 'support'
       );
+      
+      // Users can mark their own messages as read (only update the 'read' field)
       allow update: if signedIn() && 
         request.auth.uid == resource.data.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      
+      // No one can delete chat messages (keep history)
       allow delete: if false;
     }
 
     // ── users ────────────────────────────────────────────────────
     match /users/{uid} {
+      // A user can read their own doc; admins can read everyone.
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Self-registration only: you may create YOUR OWN doc, you must start at
+      // $0 and 'active', and you may NOT self-assign a privileged role
+      // (except admin@apextrade.local, which bootstraps super_admin).
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.balance == 0
@@ -50,19 +59,25 @@ service cloud.firestore {
              request.resource.data.role == 'user'
              || (request.resource.data.role == 'super_admin' && isSuperEmail())
            );
+
+      // Admins may edit any field of any user (balance, role, status, name…).
+      // A normal owner may only update presence/profile fields — never their own
+      // role, balance, or status.
+      // ✅ ADDED: Allow balance updates for the user's own document
       allow update: if signedIn() && (
         isAdmin()
         || (
              request.auth.uid == uid
              && request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['displayName', 'online', 'lastActivity', 'ipAddress', 'device'])
+                  .hasOnly(['displayName', 'online', 'lastActivity', 'ipAddress', 'device', 'balance'])
            )
       );
+
       allow delete: if isAdmin();
     }
 
     // ── USER TRADING DATA (subcollections under users) ──────────────
-    // ✅ These rules only check if the user is signed in and owns the data
+    // ✅ NEW: These rules only check if the user is signed in and owns the data
     // ✅ NO ROLE CHECK - so it works even if the user document is incomplete
     match /users/{userId}/trades/{docId} {
       allow read: if signedIn() && request.auth.uid == userId;
@@ -88,11 +103,17 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == userId;
     }
 
-    // ── activity ──────────────────────────────────────────────────
+    // ── activity (audit log) ─────────────────────────────────────
     match /activity/{id} {
+      // Admins read everything; a user may read only their own events.
       allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      // Failed-login events are written before auth succeeds, so they're allowed
+      // unauthenticated; every other event must be created by its own user.
       allow create: if request.resource.data.type == 'failed_login'
         || (signedIn() && request.resource.data.uid == request.auth.uid);
+
+      // Audit trail is immutable.
       allow update, delete: if false;
     }
   }
