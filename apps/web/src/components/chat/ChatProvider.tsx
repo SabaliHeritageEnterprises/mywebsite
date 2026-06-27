@@ -77,8 +77,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     console.log('🟡 ChatProvider: Setting up listener for user:', user.uid);
 
+    // ✅ FIXED: Only query messages where uid matches the current user
     const q = query(
       collection(db, 'chats'),
+      where('uid', '==', user.uid),
       orderBy('timestamp', 'asc')
     );
 
@@ -94,6 +96,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           const msg = { id: doc.id, ...data } as ChatMessage;
           newMessages.push(msg);
           console.log('📄 Message:', msg.text?.slice(0, 30), 'Type:', msg.type, 'UID:', msg.uid);
+
+          // Count unread support messages for this user
+          if (data.type === 'support' && data.uid === user.uid && !data.read) {
+            unread++;
+          }
         });
 
         console.log('📨 ChatProvider: Total messages:', newMessages.length);
