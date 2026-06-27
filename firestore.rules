@@ -1,11 +1,14 @@
 rules_version = '2';
 
-// ApexTrade Firestore security rules.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
       return request.auth != null;
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function myRole() {
@@ -14,7 +17,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDocExists()
         && myRole() in ['admin', 'super_admin'];
     }
 
@@ -29,10 +32,6 @@ service cloud.firestore {
         isAdmin() ||
         resource.data.uid == request.auth.uid || 
         resource.data.type == 'support'
-      );
-      allow list: if signedIn() && (
-        isAdmin() ||
-        request.auth.uid != null
       );
       allow update: if signedIn() && 
         request.auth.uid == resource.data.uid &&
@@ -63,6 +62,8 @@ service cloud.firestore {
     }
 
     // ── USER TRADING DATA (subcollections under users) ──────────────
+    // ✅ These rules only check if the user is signed in and owns the data
+    // ✅ NO ROLE CHECK - so it works even if the user document is incomplete
     match /users/{userId}/trades/{docId} {
       allow read: if signedIn() && request.auth.uid == userId;
       allow write: if signedIn() && request.auth.uid == userId;
@@ -87,7 +88,7 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == userId;
     }
 
-    // ── activity (audit log) ─────────────────────────────────────
+    // ── activity ──────────────────────────────────────────────────
     match /activity/{id} {
       allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
       allow create: if request.resource.data.type == 'failed_login'
