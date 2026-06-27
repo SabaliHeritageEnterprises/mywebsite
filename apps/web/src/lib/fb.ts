@@ -266,36 +266,42 @@ export interface UserOrder {
   createdAt: string;
 }
 
-// Save trade to user's subcollection
+// ✅ FIXED: Save trade to user's subcollection with document ID
 export async function saveUserTrade(uid: string, trade: UserTrade) {
   try {
-    const tradeRef = doc(collection(db, 'users', uid, 'trades'));
+    const tradeRef = doc(db, 'users', uid, 'trades', trade.id);
     await setDoc(tradeRef, trade);
-    console.log(`✅ Trade saved for user ${uid}`);
+    console.log(`✅ Trade saved for user ${uid}:`, trade.id);
+    return trade.id;
   } catch (error) {
-    console.error('Failed to save trade:', error);
+    console.error('❌ Failed to save trade:', error);
+    throw error;
   }
 }
 
-// Save position to user's subcollection
+// ✅ FIXED: Save position to user's subcollection with document ID
 export async function saveUserPosition(uid: string, position: UserPosition) {
   try {
-    const positionRef = doc(collection(db, 'users', uid, 'positions'));
+    const positionRef = doc(db, 'users', uid, 'positions', position.id);
     await setDoc(positionRef, position);
-    console.log(`✅ Position saved for user ${uid}`);
+    console.log(`✅ Position saved for user ${uid}:`, position.id);
+    return position.id;
   } catch (error) {
-    console.error('Failed to save position:', error);
+    console.error('❌ Failed to save position:', error);
+    throw error;
   }
 }
 
-// Save order to user's subcollection
+// ✅ FIXED: Save order to user's subcollection with document ID
 export async function saveUserOrder(uid: string, order: UserOrder) {
   try {
-    const orderRef = doc(collection(db, 'users', uid, 'orders'));
+    const orderRef = doc(db, 'users', uid, 'orders', order.id);
     await setDoc(orderRef, order);
-    console.log(`✅ Order saved for user ${uid}`);
+    console.log(`✅ Order saved for user ${uid}:`, order.id);
+    return order.id;
   } catch (error) {
-    console.error('Failed to save order:', error);
+    console.error('❌ Failed to save order:', error);
+    throw error;
   }
 }
 
