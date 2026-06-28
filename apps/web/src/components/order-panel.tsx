@@ -46,29 +46,34 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       const randomPercent = getRandomPercentage();
       const increaseAmount = user.balance * (randomPercent / 100);
       
-      // ─── 1. CALCULATE TRADE COST ────────────────────────────────
-      const tradeCost = parseFloat(quantity) * effectivePrice;
+      // ─── 1. CALCULATE TRADE COST IN QUOTE CURRENCY (USDT) ──────
+      const qty = parseFloat(quantity);
+      const price = effectivePrice;
+      const tradeCost = qty * price; // This is in USDT
       
-      // ─── 2. CHECK IF USER HAS ENOUGH BALANCE ────────────────────
+      // ─── 2. CHECK IF USER HAS ENOUGH USDT BALANCE ──────────────
       if (tradeCost > user.balance) {
-        setMsg(`❌ Insufficient balance! Required: $${tradeCost.toFixed(2)}, Available: $${user.balance.toFixed(2)}`);
+        setMsg(`❌ Insufficient USDT balance! Required: $${tradeCost.toFixed(2)}, Available: $${user.balance.toFixed(2)}`);
         setBusy(false);
         return;
       }
       
-      // ─── 3. DEDUCT TRADE COST FROM BALANCE ──────────────────────
+      // ─── 3. DEDUCT USDT FROM BALANCE ────────────────────────────
       const balanceAfterDeduction = user.balance - tradeCost;
       
       console.log('📊 Starting trade process...');
       console.log('User ID:', user.uid);
-      console.log('Trade cost:', tradeCost);
+      console.log('Action:', side);
+      console.log(`Quantity: ${qty} ${pair.base}`);
+      console.log(`Price: $${price.toFixed(2)} ${pair.quote}`);
+      console.log(`Trade Cost: $${tradeCost.toFixed(2)} ${pair.quote}`);
       console.log('Balance before:', user.balance);
       console.log('Balance after deduction:', balanceAfterDeduction);
       console.log('Profit to be approved:', increaseAmount);
       
-      // ─── 4. UPDATE BALANCE IN FIRESTORE (DEDUCT TRADE COST) ─────
+      // ─── 4. UPDATE BALANCE IN FIRESTORE (DEDUCT USDT) ──────────
       await updateUserBalance(user.uid, balanceAfterDeduction);
-      console.log('✅ Balance updated in Firestore (deducted trade cost)');
+      console.log('✅ Balance updated in Firestore (deducted USDT)');
       
       // Also update local state
       await updateBalance(balanceAfterDeduction);
@@ -83,9 +88,9 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         symbol: pair.symbol,
         side: side,
         type: type,
-        price: effectivePrice,
-        quantity: parseFloat(quantity),
-        total: tradeCost, // Use actual trade cost
+        price: price,
+        quantity: qty,
+        total: tradeCost, // Total in USDT
         timestamp: new Date().toISOString(),
         status: 'PENDING',
         pnl: increaseAmount,
@@ -112,8 +117,8 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         symbol: pair.symbol,
         side: side,
         type: type,
-        price: effectivePrice,
-        quantity: parseFloat(quantity),
+        price: price,
+        quantity: qty,
         status: 'PENDING' as const,
         createdAt: new Date().toISOString(),
       };
@@ -131,9 +136,9 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           id: posId,
           symbol: pair.symbol,
           side: side,
-          entryPrice: effectivePrice,
-          quantity: parseFloat(quantity),
-          currentPrice: effectivePrice,
+          entryPrice: price,
+          quantity: qty,
+          currentPrice: price,
           pnl: 0,
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
@@ -151,7 +156,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       await loadUserData(user.uid);
       console.log('✅ User data reloaded');
       
-      setMsg(`✅ ${side} order executed! Cost: $${tradeCost.toFixed(2)}. Profit pending admin approval.`);
+      setMsg(`✅ ${side} ${qty} ${pair.base} at $${price.toFixed(2)} | Cost: $${tradeCost.toFixed(2)} USDT | Profit pending admin approval.`);
       
       // Call onPlaced callback if provided
       if (onPlaced) {
@@ -164,8 +169,8 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           symbol: pair.symbol,
           side,
           type,
-          quantity: parseFloat(quantity),
-          ...(type !== 'MARKET' ? { price: parseFloat(price) } : {}),
+          quantity: qty,
+          ...(type !== 'MARKET' ? { price: price } : {}),
           ...(stopLoss ? { stopLoss: parseFloat(stopLoss) } : {}),
           ...(takeProfit ? { takeProfit: parseFloat(takeProfit) } : {}),
         });
