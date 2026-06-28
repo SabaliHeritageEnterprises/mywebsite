@@ -129,7 +129,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       await loadUserData(user.uid);
       console.log('✅ User data reloaded');
       
-      setMsg(`✅ Trade submitted! Waiting for admin approval.`);
+      setMsg(`✅ ${side} order submitted for ${quantity} ${pair.base} at $${effectivePrice.toFixed(2)}`);
       
       // Call onPlaced callback if provided
       if (onPlaced) {
