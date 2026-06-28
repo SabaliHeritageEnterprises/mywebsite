@@ -252,7 +252,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
             side === 'BUY' ? 'bg-up text-black' : 'bg-down text-white',
           )}
         >
-          {busy ? 'Processing...' : `${side} ${pair.base}`}
+          {busy ? 'Processing...' : `${side}`}
         </button>
 
         {msg && <p className="text-xs text-center">{msg}</p>}
