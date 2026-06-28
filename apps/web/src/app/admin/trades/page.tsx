@@ -12,6 +12,7 @@ import {
   doc, 
   updateDoc,
   getDoc,
+  getDocs,
   orderBy
 } from 'firebase/firestore';
 import { isAdmin } from '@/lib/fb';
@@ -50,7 +51,6 @@ export default function AdminTrades() {
   useEffect(() => {
     if (!user || !isAdmin(user.role)) return;
 
-    // Listen to all users' trades with status 'PENDING'
     const usersRef = collection(db, 'users');
     const unsub = onSnapshot(usersRef, async (snapshot) => {
       const allPendingTrades: PendingTrade[] = [];
@@ -85,17 +85,22 @@ export default function AdminTrades() {
   const handleApprove = async (trade: PendingTrade) => {
     setApproving(trade.id);
     try {
+      // ✅ Null check for user
+      if (!user) {
+        alert('You must be logged in to approve trades.');
+        setApproving(null);
+        return;
+      }
+
       const userRef = doc(db, 'users', trade.userId);
       const userDoc = await getDoc(userRef);
       const currentBalance = userDoc.data()?.balance || 0;
       const newBalance = currentBalance + trade.pnl;
 
-      // 1. Update user's balance
       await updateDoc(userRef, {
         balance: newBalance
       });
 
-      // 2. Update trade status to APPROVED
       const tradeRef = doc(db, 'users', trade.userId, 'trades', trade.id);
       await updateDoc(tradeRef, {
         status: 'APPROVED',
@@ -105,7 +110,6 @@ export default function AdminTrades() {
         approvedEmail: user.email
       });
 
-      // 3. Update position if BUY
       if (trade.side === 'BUY') {
         const positionsRef = collection(db, 'users', trade.userId, 'positions');
         const positionsQuery = query(
@@ -135,6 +139,12 @@ export default function AdminTrades() {
   };
 
   const handleReject = async (trade: PendingTrade) => {
+    // ✅ Null check for user
+    if (!user) {
+      alert('You must be logged in to reject trades.');
+      return;
+    }
+
     try {
       const tradeRef = doc(db, 'users', trade.userId, 'trades', trade.id);
       await updateDoc(tradeRef, {
