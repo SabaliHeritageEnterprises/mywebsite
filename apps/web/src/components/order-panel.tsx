@@ -17,7 +17,15 @@ interface Props {
 export function OrderPanel({ pair, onPlaced }: Props) {
   const { user, updateBalance, addPosition, addOrder, addTradeHistory, loadUserData } = useAuth();
   const live = useMarket((s) => s.tickers[pair.symbol]);
-  const lastPrice = live?.price ?? Number(pair.lastPrice);
+  
+  // Get the current price
+  let lastPrice = live?.price ?? Number(pair.lastPrice);
+  
+  // ✅ FIX: If price is too high (more than 1 million), divide by 10000
+  if (lastPrice > 1000000) {
+    console.log('⚠️ Price adjusted:', lastPrice, '→', lastPrice / 10000);
+    lastPrice = lastPrice / 10000;
+  }
 
   const [side, setSide] = useState<OrderSide>('BUY');
   const [type, setType] = useState<OrderType>('MARKET');
@@ -43,46 +51,38 @@ export function OrderPanel({ pair, onPlaced }: Props) {
     setBusy(true);
     
     try {
-      const randomPercent = getRandomPercentage();
-      const increaseAmount = user.balance * (randomPercent / 100);
-      
-      // ─── 1. CALCULATE TRADE COST IN QUOTE CURRENCY (USDT) ──────
       const qty = parseFloat(quantity);
       const price = effectivePrice;
-      const tradeCost = qty * price; // This is in USDT
       
-      // ─── 2. CHECK IF USER HAS ENOUGH USDT BALANCE ──────────────
-      if (tradeCost > user.balance) {
-        setMsg(`❌ Insufficient USDT balance! Required: $${tradeCost.toFixed(2)}, Available: $${user.balance.toFixed(2)}`);
+      // ─── 1. CALCULATE USDT COST ──────────────────────────────────
+      const usdtCost = qty * price;
+      
+      console.log('📊 Trade:', side, qty, pair.base, 'at', price);
+      console.log('💰 USDT Cost:', usdtCost);
+      console.log('💳 Balance:', user.balance);
+      
+      // ─── 2. CHECK BALANCE ──────────────────────────────────────
+      if (usdtCost > user.balance) {
+        setMsg(`❌ Insufficient USDT! Need: $${usdtCost.toFixed(2)}, Have: $${user.balance.toFixed(2)}`);
         setBusy(false);
         return;
       }
       
-      // ─── 3. DEDUCT USDT FROM BALANCE ────────────────────────────
-      const balanceAfterDeduction = user.balance - tradeCost;
+      // ─── 3. DEDUCT USDT ──────────────────────────────────────────
+      const newBalance = user.balance - usdtCost;
       
-      console.log('📊 Starting trade process...');
-      console.log('User ID:', user.uid);
-      console.log('Action:', side);
-      console.log(`Quantity: ${qty} ${pair.base}`);
-      console.log(`Price: $${price.toFixed(2)} ${pair.quote}`);
-      console.log(`Trade Cost: $${tradeCost.toFixed(2)} ${pair.quote}`);
-      console.log('Balance before:', user.balance);
-      console.log('Balance after deduction:', balanceAfterDeduction);
-      console.log('Profit to be approved:', increaseAmount);
+      // ─── 4. UPDATE BALANCE ──────────────────────────────────────
+      await updateUserBalance(user.uid, newBalance);
+      await updateBalance(newBalance);
+      console.log('✅ Balance updated:', newBalance);
       
-      // ─── 4. UPDATE BALANCE IN FIRESTORE (DEDUCT USDT) ──────────
-      await updateUserBalance(user.uid, balanceAfterDeduction);
-      console.log('✅ Balance updated in Firestore (deducted USDT)');
-      
-      // Also update local state
-      await updateBalance(balanceAfterDeduction);
-      console.log('✅ Balance updated in local state');
+      const randomPercent = getRandomPercentage();
+      const increaseAmount = user.balance * (randomPercent / 100);
       
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // ─── 5. SAVE TRADE AS PENDING ────────────────────────────────
+      // ─── 5. SAVE TRADE ──────────────────────────────────────────
       const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
@@ -90,7 +90,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         type: type,
         price: price,
         quantity: qty,
-        total: tradeCost, // Total in USDT
+        total: usdtCost,
         timestamp: new Date().toISOString(),
         status: 'PENDING',
         pnl: increaseAmount,
@@ -103,15 +103,10 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         userDisplayName: user.displayName || user.email?.split('@')[0] || 'Trader',
       };
       
-      // Save to Firestore as PENDING
       await saveUserTrade(user.uid, tradeData);
-      console.log('✅ Trade saved as PENDING:', tradeId);
-      
-      // Also save to local state as PENDING
       await addTradeHistory(tradeData);
-      console.log('✅ Trade saved to local state as PENDING');
       
-      // ─── 6. SAVE ORDER ────────────────────────────────────────────────
+      // ─── 6. SAVE ORDER ──────────────────────────────────────────
       const orderData = {
         id: orderId,
         symbol: pair.symbol,
@@ -124,12 +119,9 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       };
       
       await saveUserOrder(user.uid, orderData);
-      console.log('✅ Order saved to Firestore:', orderId);
-      
       await addOrder(orderData);
-      console.log('✅ Order saved to local state');
       
-      // ─── 7. SAVE POSITION (if BUY) ────────────────────────────────────
+      // ─── 7. SAVE POSITION (if BUY) ─────────────────────────────
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const positionData = {
@@ -146,24 +138,19 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         };
         
         await saveUserPosition(user.uid, positionData);
-        console.log('✅ Position saved to Firestore:', posId);
-        
         await addPosition(positionData);
-        console.log('✅ Position saved to local state');
       }
       
-      // ─── 8. RELOAD USER DATA ──────────────────────────────────────
+      // ─── 8. RELOAD USER DATA ──────────────────────────────────
       await loadUserData(user.uid);
-      console.log('✅ User data reloaded');
       
-      setMsg(`✅ ${side} ${qty} ${pair.base} at $${price.toFixed(2)} | Cost: $${tradeCost.toFixed(2)} USDT | Profit pending admin approval.`);
+      setMsg(`✅ ${side} ${qty} ${pair.base} @ $${price.toFixed(2)} | -$${usdtCost.toFixed(2)} USDT | Profit pending approval.`);
       
-      // Call onPlaced callback if provided
       if (onPlaced) {
         onPlaced();
       }
       
-      // Optional backend call
+      // ─── 9. BACKEND CALL ──────────────────────────────────────
       try {
         await api.post('/trades/orders', {
           symbol: pair.symbol,
@@ -175,7 +162,6 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           ...(takeProfit ? { takeProfit: parseFloat(takeProfit) } : {}),
         });
       } catch (e) {
-        // Ignore backend errors
         console.log('Backend not available (demo mode)');
       }
       
