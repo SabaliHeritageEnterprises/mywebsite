@@ -65,7 +65,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ── USER TRADING DATA ──────────────────────────────────────────
+    // ── USER TRADING DATA (subcollections under users) ──────────
     match /users/{userId}/trades/{docId} {
       allow read: if signedIn() && request.auth.uid == userId;
       allow write: if signedIn() && request.auth.uid == userId;
@@ -88,6 +88,17 @@ service cloud.firestore {
       allow create: if signedIn() && request.auth.uid == userId;
       allow update: if signedIn() && request.auth.uid == userId;
       allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // ── PENDING TRADES ──────────────────────────────────────────
+    match /pendingTrades/{docId} {
+      // Only admins can read pending trades
+      allow read: if signedIn() && isAdmin();
+      // Any signed-in user can create a pending trade
+      allow create: if signedIn();
+      // Only admins can update or delete pending trades
+      allow update: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isAdmin();
     }
 
     // ── activity ──────────────────────────────────────────────────

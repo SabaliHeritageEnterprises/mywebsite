@@ -12,8 +12,9 @@ import {
   doc, 
   updateDoc,
   getDoc,
-  getDocs,
-  orderBy
+  orderBy,
+  deleteDoc,
+  addDoc  // ✅ ADD THIS
 } from 'firebase/firestore';
 import { isAdmin } from '@/lib/fb';
 
@@ -56,45 +57,32 @@ export default function AdminTrades() {
 
     console.log('🔍 AdminTrades: Setting up listener for pending trades...');
 
-    const usersRef = collection(db, 'users');
-    const unsub = onSnapshot(usersRef, async (snapshot) => {
-      console.log('📨 AdminTrades: Users snapshot received. Users count:', snapshot.size);
-      const allPendingTrades: PendingTrade[] = [];
+    // ✅ Query the pendingTrades collection
+    const pendingRef = collection(db, 'pendingTrades');
+    const q = query(
+      pendingRef,
+      where('status', '==', 'PENDING'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      console.log('📨 AdminTrades: Pending trades snapshot received. Size:', snapshot.size);
+      const trades: PendingTrade[] = [];
       
-      for (const userDoc of snapshot.docs) {
-        const uid = userDoc.id;
-        console.log('👤 AdminTrades: Checking user:', uid);
-        
-        const tradesRef = collection(db, 'users', uid, 'trades');
-        const tradesQuery = query(
-          tradesRef,
-          where('status', '==', 'PENDING'),
-          orderBy('timestamp', 'desc')
-        );
-        
-        try {
-          const tradesSnapshot = await getDocs(tradesQuery);
-          console.log(`📊 AdminTrades: Found ${tradesSnapshot.size} pending trades for user ${uid}`);
-          
-          tradesSnapshot.forEach((doc) => {
-            const data = doc.data();
-            console.log('📄 AdminTrades: Trade data:', { id: doc.id, ...data });
-            allPendingTrades.push({
-              id: doc.id,
-              ...data,
-              userId: uid,
-            } as PendingTrade);
-          });
-        } catch (error) {
-          console.error(`❌ AdminTrades: Error fetching trades for user ${uid}:`, error);
-        }
-      }
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log('📄 AdminTrades: Trade data:', { id: doc.id, ...data });
+        trades.push({
+          id: doc.id,
+          ...data,
+        } as PendingTrade);
+      });
       
-      console.log('📊 AdminTrades: Total pending trades:', allPendingTrades.length);
-      setPendingTrades(allPendingTrades);
+      console.log('📊 AdminTrades: Total pending trades:', trades.length);
+      setPendingTrades(trades);
       setLoading(false);
     }, (error) => {
-      console.error('❌ AdminTrades: Error in users snapshot listener:', error);
+      console.error('❌ AdminTrades: Error in pending trades listener:', error);
       setLoading(false);
     });
 
@@ -117,6 +105,7 @@ export default function AdminTrades() {
       console.log('User ID:', trade.userId);
       console.log('PNL:', trade.pnl);
 
+      // 1. Update user's balance
       const userRef = doc(db, 'users', trade.userId);
       const userDoc = await getDoc(userRef);
       const currentBalance = userDoc.data()?.balance || 0;
@@ -129,8 +118,13 @@ export default function AdminTrades() {
         balance: newBalance
       });
 
-      const tradeRef = doc(db, 'users', trade.userId, 'trades', trade.id);
-      await updateDoc(tradeRef, {
+      // 2. ✅ Move trade from pendingTrades to trades history
+      const pendingRef = doc(db, 'pendingTrades', trade.id);
+      
+      // Create the approved trade in trades collection
+      const tradesRef = collection(db, 'trades');
+      await addDoc(tradesRef, {
+        ...trade,
         status: 'APPROVED',
         approved: true,
         approvedBy: user.uid,
@@ -138,6 +132,10 @@ export default function AdminTrades() {
         approvedEmail: user.email
       });
 
+      // 3. ✅ Delete from pendingTrades
+      await deleteDoc(pendingRef);
+
+      // 4. Update position if BUY
       if (trade.side === 'BUY') {
         const positionsRef = collection(db, 'users', trade.userId, 'positions');
         const positionsQuery = query(
@@ -175,12 +173,18 @@ export default function AdminTrades() {
     try {
       console.log('❌ AdminTrades: Rejecting trade:', trade.id);
       
-      const tradeRef = doc(db, 'users', trade.userId, 'trades', trade.id);
-      await updateDoc(tradeRef, {
+      // ✅ Move to trades history as REJECTED
+      const tradesRef = collection(db, 'trades');
+      await addDoc(tradesRef, {
+        ...trade,
         status: 'REJECTED',
         rejectedBy: user.uid,
         rejectedAt: new Date().toISOString()
       });
+
+      // ✅ Delete from pendingTrades
+      const pendingRef = doc(db, 'pendingTrades', trade.id);
+      await deleteDoc(pendingRef);
       
       setPendingTrades(prev => prev.filter(t => t.id !== trade.id));
       console.log('✅ Trade rejected successfully');

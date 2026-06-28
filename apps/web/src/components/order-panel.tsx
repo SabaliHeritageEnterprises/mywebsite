@@ -7,6 +7,7 @@ import { useMarket } from '@/store/market';
 import { fmtPrice, cn } from '@/lib/utils';
 import { saveUserTrade, saveUserPosition, saveUserOrder, updateUserBalance } from '@/lib/fb';
 import { auth } from '@/components/firebase';
+import { collection, addDoc } from 'firebase/firestore'; // ✅ ADDED for pendingTrades
 import type { MarketPair, OrderSide, OrderType } from '@/lib/types';
 
 interface Props {
@@ -79,7 +80,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // ─── 5. SAVE TRADE ──────────────────────────────────────────
+      // ─── 5. SAVE TRADE TO PENDING TRADES COLLECTION ──────────────
       const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
@@ -100,10 +101,16 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         userDisplayName: user.displayName || user.email?.split('@')[0] || 'Trader',
       };
       
-      await saveUserTrade(user.uid, tradeData);
-      await addTradeHistory(tradeData);
+      // ✅ Save to pendingTrades collection (root level)
+      const pendingRef = collection(db, 'pendingTrades');
+      const pendingDocRef = await addDoc(pendingRef, tradeData);
+      console.log('✅ Trade saved to pendingTrades collection:', pendingDocRef.id);
       
-      // ─── 6. SAVE ORDER ──────────────────────────────────────────
+      // ─── 6. SAVE TO LOCAL STATE ─────────────────────────────────
+      await addTradeHistory(tradeData);
+      console.log('✅ Trade saved to local state as PENDING');
+      
+      // ─── 7. SAVE ORDER ──────────────────────────────────────────
       const orderData = {
         id: orderId,
         symbol: pair.symbol,
@@ -118,7 +125,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       await saveUserOrder(user.uid, orderData);
       await addOrder(orderData);
       
-      // ─── 7. SAVE POSITION (if BUY) ─────────────────────────────
+      // ─── 8. SAVE POSITION (if BUY) ─────────────────────────────
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const positionData = {
@@ -138,16 +145,16 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         await addPosition(positionData);
       }
       
-      // ─── 8. RELOAD USER DATA ──────────────────────────────────
+      // ─── 9. RELOAD USER DATA ──────────────────────────────────
       await loadUserData(user.uid);
       
-      setMsg(`✅ ${side} ${qty} ${pair.base} @ $${price.toFixed(2)} | -$${usdtCost.toFixed(2)} USDT | Profit pending approval.`);
+      setMsg(`✅ ${side} ${qty} ${pair.base} @ $${price.toFixed(2)} | -$${usdtCost.toFixed(2)} USDT | Pending admin approval.`);
       
       if (onPlaced) {
         onPlaced();
       }
       
-      // ─── 9. BACKEND CALL ──────────────────────────────────────
+      // ─── 10. BACKEND CALL ──────────────────────────────────────
       try {
         await api.post('/trades/orders', {
           symbol: pair.symbol,
