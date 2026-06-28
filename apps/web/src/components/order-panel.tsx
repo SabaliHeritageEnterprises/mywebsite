@@ -18,14 +18,8 @@ export function OrderPanel({ pair, onPlaced }: Props) {
   const { user, updateBalance, addPosition, addOrder, addTradeHistory, loadUserData } = useAuth();
   const live = useMarket((s) => s.tickers[pair.symbol]);
   
-  // Get the current price
-  let lastPrice = live?.price ?? Number(pair.lastPrice);
-  
-  // ✅ FIX: If price is too high (more than 1 million), divide by 10000
-  if (lastPrice > 1000000) {
-    console.log('⚠️ Price adjusted:', lastPrice, '→', lastPrice / 10000);
-    lastPrice = lastPrice / 10000;
-  }
+  // ─── GET PRICE (already validated in ws.ts) ─────────────────────
+  const lastPrice = live?.price ?? Number(pair.lastPrice);
 
   const [side, setSide] = useState<OrderSide>('BUY');
   const [type, setType] = useState<OrderType>('MARKET');
@@ -57,9 +51,12 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       // ─── 1. CALCULATE USDT COST ──────────────────────────────────
       const usdtCost = qty * price;
       
-      console.log('📊 Trade:', side, qty, pair.base, 'at', price);
-      console.log('💰 USDT Cost:', usdtCost);
-      console.log('💳 Balance:', user.balance);
+      console.log('📊 Trade calculation:');
+      console.log(`   Side: ${side}`);
+      console.log(`   Quantity: ${qty} ${pair.base}`);
+      console.log(`   Price: $${price.toFixed(4)}`);
+      console.log(`   USDT Cost: $${usdtCost.toFixed(2)}`);
+      console.log(`   Balance: $${user.balance.toFixed(2)}`);
       
       // ─── 2. CHECK BALANCE ──────────────────────────────────────
       if (usdtCost > user.balance) {
