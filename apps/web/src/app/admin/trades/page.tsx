@@ -12,9 +12,10 @@ import {
   doc, 
   updateDoc,
   getDoc,
+  getDocs,  // ✅ ADDED
   orderBy,
   deleteDoc,
-  addDoc  // ✅ ADD THIS
+  addDoc
 } from 'firebase/firestore';
 import { isAdmin } from '@/lib/fb';
 

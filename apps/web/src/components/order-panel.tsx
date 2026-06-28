@@ -6,8 +6,8 @@ import { useAuth } from '@/store/auth';
 import { useMarket } from '@/store/market';
 import { fmtPrice, cn } from '@/lib/utils';
 import { saveUserTrade, saveUserPosition, saveUserOrder, updateUserBalance } from '@/lib/fb';
-import { auth } from '@/components/firebase';
-import { collection, addDoc } from 'firebase/firestore'; // ✅ ADDED for pendingTrades
+import { auth, db } from '@/components/firebase'; // ✅ ADDED db
+import { collection, addDoc } from 'firebase/firestore';
 import type { MarketPair, OrderSide, OrderType } from '@/lib/types';
 
 interface Props {
