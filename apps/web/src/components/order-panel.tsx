@@ -253,7 +253,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         </button>
 
         {msg && <p className="text-xs text-center">{msg}</p>}
-        <p className="text-[10px] text-center text-muted">Trades require admin approval before profits are added.</p>
+        <p className="text-[10px] text-center text-muted">Trading involves risk. Review your order before placing</p>
       </div>
     </div>
   );
