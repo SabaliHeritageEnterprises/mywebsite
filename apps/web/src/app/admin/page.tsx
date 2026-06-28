@@ -9,11 +9,12 @@ import {
   listenUsers, listenActivity, adminUpdateUser, adminAdjustBalance, computeOnline, isAdmin,
   type AppUser,
 } from '@/lib/fb';
-import { LineChart, Users, Activity, Circle, MessageCircle, Shield } from 'lucide-react';
+import { LineChart, Users, Activity, Circle, MessageCircle, Shield, TrendingUp } from 'lucide-react';
 import AdminChat from './chat/page';
 import AdminKYC from './kyc/page';
+import AdminTrades from './trades/page';
 
-type Tab = 'overview' | 'users' | 'activity' | 'chat' | 'kyc';
+type Tab = 'overview' | 'users' | 'activity' | 'chat' | 'kyc' | 'trades';
 const LAST_VIEWED_KEY = 'apex_admin_activity_lastViewed';
 const fmtUsd = (n: number) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 const tsToDate = (t: any): Date | null => t?.toDate?.() ?? null;
@@ -71,6 +72,7 @@ export default function AdminPage() {
     { key: 'activity', label: 'Recent User Activity', icon: Activity, badge: newLogins, onClick: openActivity },
     { key: 'chat', label: 'Support Chat', icon: MessageCircle },
     { key: 'kyc', label: 'KYC Verification', icon: Shield },
+    { key: 'trades', label: 'Trade Approvals', icon: TrendingUp },
   ];
 
   return (
@@ -100,6 +102,7 @@ export default function AdminPage() {
         {tab === 'activity' && <ActivityTab activity={activity} onlineMap={onlineMap} />}
         {tab === 'chat' && <AdminChat />}
         {tab === 'kyc' && <AdminKYC />}
+        {tab === 'trades' && <AdminTrades />}
       </main>
     </div>
   );

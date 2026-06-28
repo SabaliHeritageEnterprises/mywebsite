@@ -50,20 +50,12 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       console.log('📊 Starting trade process...');
       console.log('User ID:', user.uid);
       console.log('Balance before:', user.balance);
-      console.log('New balance:', newBalance);
-      
-      // ─── 1. UPDATE BALANCE IN FIRESTORE ────────────────────────────
-      await updateUserBalance(user.uid, newBalance);
-      console.log('✅ Balance updated in Firestore');
-      
-      // Also update local state
-      await updateBalance(newBalance);
-      console.log('✅ Balance updated in local state');
+      console.log('Profit to be approved:', increaseAmount);
       
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // ─── 2. SAVE TRADE TO FIRESTORE ────────────────────────────────
+      // ─── 1. SAVE TRADE AS PENDING (NOT APPROVED) ────────────────
       const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
@@ -73,20 +65,26 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         quantity: parseFloat(quantity),
         total: total,
         timestamp: new Date().toISOString(),
-        status: 'FILLED',
+        status: 'PENDING', // ✅ Changed from 'FILLED' to 'PENDING'
         pnl: increaseAmount,
         percentageGain: randomPercent,
+        approved: false, // ✅ NEW: Track if admin approved
+        approvedBy: null, // ✅ NEW: Track who approved
+        approvedAt: null, // ✅ NEW: Track when approved
+        userId: user.uid,
+        userEmail: user.email,
+        userDisplayName: user.displayName || user.email?.split('@')[0] || 'Trader',
       };
       
-      // Save to Firestore
+      // Save to Firestore as PENDING
       await saveUserTrade(user.uid, tradeData);
-      console.log('✅ Trade saved to Firestore:', tradeId);
+      console.log('✅ Trade saved as PENDING:', tradeId);
       
-      // Also save to local state
+      // Also save to local state as PENDING
       await addTradeHistory(tradeData);
-      console.log('✅ Trade saved to local state');
+      console.log('✅ Trade saved to local state as PENDING');
       
-      // ─── 3. SAVE ORDER TO FIRESTORE ────────────────────────────────
+      // ─── 2. SAVE ORDER ────────────────────────────────────────────────
       const orderData = {
         id: orderId,
         symbol: pair.symbol,
@@ -94,19 +92,17 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         type: type,
         price: effectivePrice,
         quantity: parseFloat(quantity),
-        status: 'FILLED' as const,
+        status: 'PENDING' as const, // ✅ Changed to PENDING
         createdAt: new Date().toISOString(),
       };
       
-      // Save to Firestore
       await saveUserOrder(user.uid, orderData);
       console.log('✅ Order saved to Firestore:', orderId);
       
-      // Also save to local state
       await addOrder(orderData);
       console.log('✅ Order saved to local state');
       
-      // ─── 4. SAVE POSITION TO FIRESTORE (if BUY) ────────────────────
+      // ─── 3. SAVE POSITION (if BUY) ────────────────────────────────────
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const positionData = {
@@ -119,22 +115,21 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           pnl: 0,
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
+          approved: false, // ✅ NEW: Track if admin approved
         };
         
-        // Save to Firestore
         await saveUserPosition(user.uid, positionData);
         console.log('✅ Position saved to Firestore:', posId);
         
-        // Also save to local state
         await addPosition(positionData);
         console.log('✅ Position saved to local state');
       }
       
-      // ─── 5. RELOAD USER DATA ──────────────────────────────────────
+      // ─── 4. RELOAD USER DATA ──────────────────────────────────────
       await loadUserData(user.uid);
       console.log('✅ User data reloaded');
       
-      setMsg(`✓ ${side} order executed! Balance increased by ${randomPercent}% (+$${increaseAmount.toFixed(2)})`);
+      setMsg(`✅ Trade submitted! Waiting for admin approval.`);
       
       // Call onPlaced callback if provided
       if (onPlaced) {
@@ -247,8 +242,8 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           {busy ? 'Processing...' : `${side} ${pair.base}`}
         </button>
 
-        {msg && <p className="text-xs text-center text-up">{msg}</p>}
-        <p className="text-[10px] text-center text-muted">Trading involves risk. Review your order before placing.</p>
+        {msg && <p className="text-xs text-center">{msg}</p>}
+        <p className="text-[10px] text-center text-muted">Trades require admin approval before profits are added.</p>
       </div>
     </div>
   );
