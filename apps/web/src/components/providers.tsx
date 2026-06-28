@@ -11,7 +11,7 @@ import {
   listenUserTrades, listenUserPositions, listenUserOrders, listenUserBalance
 } from '@/lib/fb';
 import type { Ticker } from '@/lib/types';
-import { ChatProvider, ChatWidget } from '@/components/chat';  // ← ADD THIS
+import { ChatProvider, ChatWidget } from '@/components/chat';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const setUser = useAuth((s) => s.setUser);
@@ -69,29 +69,51 @@ export function Providers({ children }: { children: React.ReactNode }) {
         setInitialized(true);
       });
       
+      // ─── LIVE-SYNC TRADING DATA WITH ERROR HANDLING ────────────────
+      
       // Live-sync user trades (real-time)
-      unsubTrades = listenUserTrades(fbUser.uid, (trades) => {
-        setTradeHistory(trades);
-        console.log('📊 Real-time trade update:', trades.length, 'trades');
-      });
+      try {
+        unsubTrades = listenUserTrades(fbUser.uid, (trades) => {
+          setTradeHistory(trades);
+          console.log('📊 Real-time trade update:', trades.length, 'trades');
+        });
+      } catch (error) {
+        console.log('📊 No trades yet (subcollection empty)');
+        setTradeHistory([]);
+      }
       
       // Live-sync user positions (real-time)
-      unsubPositions = listenUserPositions(fbUser.uid, (positions) => {
-        setPositions(positions);
-        console.log('📈 Real-time positions update:', positions.length, 'positions');
-      });
+      try {
+        unsubPositions = listenUserPositions(fbUser.uid, (positions) => {
+          setPositions(positions);
+          console.log('📈 Real-time positions update:', positions.length, 'positions');
+        });
+      } catch (error) {
+        console.log('📈 No positions yet (subcollection empty)');
+        setPositions([]);
+      }
       
       // Live-sync user orders (real-time)
-      unsubOrders = listenUserOrders(fbUser.uid, (orders) => {
-        setOrders(orders);
-        console.log('📋 Real-time orders update:', orders.length, 'orders');
-      });
+      try {
+        unsubOrders = listenUserOrders(fbUser.uid, (orders) => {
+          setOrders(orders);
+          console.log('📋 Real-time orders update:', orders.length, 'orders');
+        });
+      } catch (error) {
+        console.log('📋 No orders yet (subcollection empty)');
+        setOrders([]);
+      }
       
       // Live-sync user balance (real-time)
-      unsubBalance = listenUserBalance(fbUser.uid, (balance) => {
-        setBalance(balance);
-        console.log('💰 Real-time balance update: $' + balance.toFixed(2));
-      });
+      try {
+        unsubBalance = listenUserBalance(fbUser.uid, (balance) => {
+          setBalance(balance);
+          console.log('💰 Real-time balance update: $' + balance.toFixed(2));
+        });
+      } catch (error) {
+        console.log('💰 No balance yet');
+        setBalance(0);
+      }
       
       hb = setInterval(() => heartbeat(fbUser.uid), 20_000);
     });

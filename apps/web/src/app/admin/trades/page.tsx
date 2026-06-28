@@ -49,14 +49,22 @@ export default function AdminTrades() {
   }, [initialized, user, router]);
 
   useEffect(() => {
-    if (!user || !isAdmin(user.role)) return;
+    if (!user || !isAdmin(user.role)) {
+      console.log('⛔ AdminTrades: Not admin or no user');
+      return;
+    }
+
+    console.log('🔍 AdminTrades: Setting up listener for pending trades...');
 
     const usersRef = collection(db, 'users');
     const unsub = onSnapshot(usersRef, async (snapshot) => {
+      console.log('📨 AdminTrades: Users snapshot received. Users count:', snapshot.size);
       const allPendingTrades: PendingTrade[] = [];
       
       for (const userDoc of snapshot.docs) {
         const uid = userDoc.id;
+        console.log('👤 AdminTrades: Checking user:', uid);
+        
         const tradesRef = collection(db, 'users', uid, 'trades');
         const tradesQuery = query(
           tradesRef,
@@ -64,38 +72,58 @@ export default function AdminTrades() {
           orderBy('timestamp', 'desc')
         );
         
-        const tradesSnapshot = await getDocs(tradesQuery);
-        tradesSnapshot.forEach((doc) => {
-          const data = doc.data();
-          allPendingTrades.push({
-            id: doc.id,
-            ...data,
-            userId: uid,
-          } as PendingTrade);
-        });
+        try {
+          const tradesSnapshot = await getDocs(tradesQuery);
+          console.log(`📊 AdminTrades: Found ${tradesSnapshot.size} pending trades for user ${uid}`);
+          
+          tradesSnapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log('📄 AdminTrades: Trade data:', { id: doc.id, ...data });
+            allPendingTrades.push({
+              id: doc.id,
+              ...data,
+              userId: uid,
+            } as PendingTrade);
+          });
+        } catch (error) {
+          console.error(`❌ AdminTrades: Error fetching trades for user ${uid}:`, error);
+        }
       }
       
+      console.log('📊 AdminTrades: Total pending trades:', allPendingTrades.length);
       setPendingTrades(allPendingTrades);
+      setLoading(false);
+    }, (error) => {
+      console.error('❌ AdminTrades: Error in users snapshot listener:', error);
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      console.log('🧹 AdminTrades: Cleaning up listener');
+      unsub();
+    };
   }, [user]);
 
   const handleApprove = async (trade: PendingTrade) => {
     setApproving(trade.id);
     try {
-      // ✅ Null check for user
       if (!user) {
         alert('You must be logged in to approve trades.');
         setApproving(null);
         return;
       }
 
+      console.log('✅ AdminTrades: Approving trade:', trade.id);
+      console.log('User ID:', trade.userId);
+      console.log('PNL:', trade.pnl);
+
       const userRef = doc(db, 'users', trade.userId);
       const userDoc = await getDoc(userRef);
       const currentBalance = userDoc.data()?.balance || 0;
       const newBalance = currentBalance + trade.pnl;
+
+      console.log('Current balance:', currentBalance);
+      console.log('New balance:', newBalance);
 
       await updateDoc(userRef, {
         balance: newBalance
@@ -131,7 +159,7 @@ export default function AdminTrades() {
       setPendingTrades(prev => prev.filter(t => t.id !== trade.id));
       console.log('✅ Trade approved successfully');
     } catch (error) {
-      console.error('Error approving trade:', error);
+      console.error('❌ Error approving trade:', error);
       alert('Failed to approve trade. Please try again.');
     } finally {
       setApproving(null);
@@ -139,23 +167,25 @@ export default function AdminTrades() {
   };
 
   const handleReject = async (trade: PendingTrade) => {
-    // ✅ Null check for user
     if (!user) {
       alert('You must be logged in to reject trades.');
       return;
     }
 
     try {
+      console.log('❌ AdminTrades: Rejecting trade:', trade.id);
+      
       const tradeRef = doc(db, 'users', trade.userId, 'trades', trade.id);
       await updateDoc(tradeRef, {
         status: 'REJECTED',
         rejectedBy: user.uid,
         rejectedAt: new Date().toISOString()
       });
+      
       setPendingTrades(prev => prev.filter(t => t.id !== trade.id));
-      console.log('✅ Trade rejected');
+      console.log('✅ Trade rejected successfully');
     } catch (error) {
-      console.error('Error rejecting trade:', error);
+      console.error('❌ Error rejecting trade:', error);
       alert('Failed to reject trade. Please try again.');
     }
   };
