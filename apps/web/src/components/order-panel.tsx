@@ -45,17 +45,39 @@ export function OrderPanel({ pair, onPlaced }: Props) {
     try {
       const randomPercent = getRandomPercentage();
       const increaseAmount = user.balance * (randomPercent / 100);
-      const newBalance = user.balance + increaseAmount;
+      
+      // ─── 1. CALCULATE TRADE COST ────────────────────────────────
+      const tradeCost = parseFloat(quantity) * effectivePrice;
+      
+      // ─── 2. CHECK IF USER HAS ENOUGH BALANCE ────────────────────
+      if (tradeCost > user.balance) {
+        setMsg(`❌ Insufficient balance! Required: $${tradeCost.toFixed(2)}, Available: $${user.balance.toFixed(2)}`);
+        setBusy(false);
+        return;
+      }
+      
+      // ─── 3. DEDUCT TRADE COST FROM BALANCE ──────────────────────
+      const balanceAfterDeduction = user.balance - tradeCost;
       
       console.log('📊 Starting trade process...');
       console.log('User ID:', user.uid);
+      console.log('Trade cost:', tradeCost);
       console.log('Balance before:', user.balance);
+      console.log('Balance after deduction:', balanceAfterDeduction);
       console.log('Profit to be approved:', increaseAmount);
+      
+      // ─── 4. UPDATE BALANCE IN FIRESTORE (DEDUCT TRADE COST) ─────
+      await updateUserBalance(user.uid, balanceAfterDeduction);
+      console.log('✅ Balance updated in Firestore (deducted trade cost)');
+      
+      // Also update local state
+      await updateBalance(balanceAfterDeduction);
+      console.log('✅ Balance updated in local state');
       
       const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // ─── 1. SAVE TRADE AS PENDING (NOT APPROVED) ────────────────
+      // ─── 5. SAVE TRADE AS PENDING ────────────────────────────────
       const tradeData = {
         id: tradeId,
         symbol: pair.symbol,
@@ -63,14 +85,14 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         type: type,
         price: effectivePrice,
         quantity: parseFloat(quantity),
-        total: total,
+        total: tradeCost, // Use actual trade cost
         timestamp: new Date().toISOString(),
-        status: 'PENDING', // ✅ Changed from 'FILLED' to 'PENDING'
+        status: 'PENDING',
         pnl: increaseAmount,
         percentageGain: randomPercent,
-        approved: false, // ✅ NEW: Track if admin approved
-        approvedBy: null, // ✅ NEW: Track who approved
-        approvedAt: null, // ✅ NEW: Track when approved
+        approved: false,
+        approvedBy: null,
+        approvedAt: null,
         userId: user.uid,
         userEmail: user.email,
         userDisplayName: user.displayName || user.email?.split('@')[0] || 'Trader',
@@ -84,7 +106,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       await addTradeHistory(tradeData);
       console.log('✅ Trade saved to local state as PENDING');
       
-      // ─── 2. SAVE ORDER ────────────────────────────────────────────────
+      // ─── 6. SAVE ORDER ────────────────────────────────────────────────
       const orderData = {
         id: orderId,
         symbol: pair.symbol,
@@ -92,7 +114,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         type: type,
         price: effectivePrice,
         quantity: parseFloat(quantity),
-        status: 'PENDING' as const, // ✅ Changed to PENDING
+        status: 'PENDING' as const,
         createdAt: new Date().toISOString(),
       };
       
@@ -102,7 +124,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       await addOrder(orderData);
       console.log('✅ Order saved to local state');
       
-      // ─── 3. SAVE POSITION (if BUY) ────────────────────────────────────
+      // ─── 7. SAVE POSITION (if BUY) ────────────────────────────────────
       if (side === 'BUY') {
         const posId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const positionData = {
@@ -115,7 +137,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
           pnl: 0,
           openTime: new Date().toISOString(),
           status: 'OPEN' as const,
-          approved: false, // ✅ NEW: Track if admin approved
+          approved: false,
         };
         
         await saveUserPosition(user.uid, positionData);
@@ -125,11 +147,11 @@ export function OrderPanel({ pair, onPlaced }: Props) {
         console.log('✅ Position saved to local state');
       }
       
-      // ─── 4. RELOAD USER DATA ──────────────────────────────────────
+      // ─── 8. RELOAD USER DATA ──────────────────────────────────────
       await loadUserData(user.uid);
       console.log('✅ User data reloaded');
       
-      setMsg(`✅ ${side} order submitted for ${quantity} ${pair.base} at $${effectivePrice.toFixed(2)}`);
+      setMsg(`✅ ${side} order executed! Cost: $${tradeCost.toFixed(2)}. Profit pending admin approval.`);
       
       // Call onPlaced callback if provided
       if (onPlaced) {
