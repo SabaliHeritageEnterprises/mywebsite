@@ -26,6 +26,7 @@ export interface Ticker {
   low24h: number;
   volume24h: number;
   ts: number;
+  _logged?: boolean; // ✅ ADD THIS - for tracking logged symbols in ws.ts
 }
 
 export interface Candle {
