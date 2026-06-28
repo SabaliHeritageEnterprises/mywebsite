@@ -148,7 +148,7 @@ export function OrderPanel({ pair, onPlaced }: Props) {
       // ─── 9. RELOAD USER DATA ──────────────────────────────────
       await loadUserData(user.uid);
       
-      setMsg(`✅ ${side} ${qty} ${pair.base} @ $${price.toFixed(2)} | -$${usdtCost.toFixed(2)} USDT | Pending admin approval.`);
+     setMsg(`✅ ${side} order submitted for ${qty} ${pair.base} | Pending.`);
       
       if (onPlaced) {
         onPlaced();
