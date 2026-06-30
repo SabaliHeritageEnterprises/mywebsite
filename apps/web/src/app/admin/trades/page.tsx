@@ -12,7 +12,7 @@ import {
   doc, 
   updateDoc,
   getDoc,
-  getDocs,  // ✅ ADDED
+  getDocs,
   orderBy,
   deleteDoc,
   addDoc
@@ -58,7 +58,6 @@ export default function AdminTrades() {
 
     console.log('🔍 AdminTrades: Setting up listener for pending trades...');
 
-    // ✅ Query the pendingTrades collection
     const pendingRef = collection(db, 'pendingTrades');
     const q = query(
       pendingRef,
@@ -109,6 +108,13 @@ export default function AdminTrades() {
       // 1. Update user's balance
       const userRef = doc(db, 'users', trade.userId);
       const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        alert('User document not found!');
+        setApproving(null);
+        return;
+      }
+      
       const currentBalance = userDoc.data()?.balance || 0;
       const newBalance = currentBalance + trade.pnl;
 
@@ -118,11 +124,11 @@ export default function AdminTrades() {
       await updateDoc(userRef, {
         balance: newBalance
       });
+      console.log('✅ Balance updated');
 
       // 2. ✅ Move trade from pendingTrades to trades history
       const pendingRef = doc(db, 'pendingTrades', trade.id);
       
-      // Create the approved trade in trades collection
       const tradesRef = collection(db, 'trades');
       await addDoc(tradesRef, {
         ...trade,
@@ -132,34 +138,42 @@ export default function AdminTrades() {
         approvedAt: new Date().toISOString(),
         approvedEmail: user.email
       });
+      console.log('✅ Trade added to trades history');
 
       // 3. ✅ Delete from pendingTrades
       await deleteDoc(pendingRef);
+      console.log('✅ Pending trade deleted');
 
       // 4. Update position if BUY
       if (trade.side === 'BUY') {
-        const positionsRef = collection(db, 'users', trade.userId, 'positions');
-        const positionsQuery = query(
-          positionsRef,
-          where('symbol', '==', trade.symbol),
-          where('entryPrice', '==', trade.price),
-          where('quantity', '==', trade.quantity),
-          where('status', '==', 'OPEN')
-        );
-        const positionsSnapshot = await getDocs(positionsQuery);
-        positionsSnapshot.forEach(async (posDoc) => {
-          await updateDoc(doc(db, 'users', trade.userId, 'positions', posDoc.id), {
-            approved: true,
-            approvedAt: new Date().toISOString()
+        try {
+          const positionsRef = collection(db, 'users', trade.userId, 'positions');
+          const positionsQuery = query(
+            positionsRef,
+            where('symbol', '==', trade.symbol),
+            where('entryPrice', '==', trade.price),
+            where('quantity', '==', trade.quantity),
+            where('status', '==', 'OPEN')
+          );
+          const positionsSnapshot = await getDocs(positionsQuery);
+          positionsSnapshot.forEach(async (posDoc) => {
+            await updateDoc(doc(db, 'users', trade.userId, 'positions', posDoc.id), {
+              approved: true,
+              approvedAt: new Date().toISOString()
+            });
           });
-        });
+          console.log('✅ Position updated');
+        } catch (posError) {
+          console.log('⚠️ No position found to update:', posError);
+        }
       }
 
       setPendingTrades(prev => prev.filter(t => t.id !== trade.id));
       console.log('✅ Trade approved successfully');
+      alert('✅ Trade approved successfully!');
     } catch (error) {
       console.error('❌ Error approving trade:', error);
-      alert('Failed to approve trade. Please try again.');
+      alert(`Failed to approve trade: ${error.message}`);
     } finally {
       setApproving(null);
     }
@@ -174,7 +188,6 @@ export default function AdminTrades() {
     try {
       console.log('❌ AdminTrades: Rejecting trade:', trade.id);
       
-      // ✅ Move to trades history as REJECTED
       const tradesRef = collection(db, 'trades');
       await addDoc(tradesRef, {
         ...trade,
@@ -182,16 +195,18 @@ export default function AdminTrades() {
         rejectedBy: user.uid,
         rejectedAt: new Date().toISOString()
       });
+      console.log('✅ Trade added to trades history as REJECTED');
 
-      // ✅ Delete from pendingTrades
       const pendingRef = doc(db, 'pendingTrades', trade.id);
       await deleteDoc(pendingRef);
+      console.log('✅ Pending trade deleted');
       
       setPendingTrades(prev => prev.filter(t => t.id !== trade.id));
       console.log('✅ Trade rejected successfully');
+      alert('✅ Trade rejected successfully!');
     } catch (error) {
       console.error('❌ Error rejecting trade:', error);
-      alert('Failed to reject trade. Please try again.');
+      alert(`Failed to reject trade: ${error.message}`);
     }
   };
 
