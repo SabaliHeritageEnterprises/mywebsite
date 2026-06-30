@@ -173,7 +173,12 @@ export default function AdminTrades() {
       alert('✅ Trade approved successfully!');
     } catch (error) {
       console.error('❌ Error approving trade:', error);
-      alert(`Failed to approve trade: ${error.message}`);
+      // ✅ Fix: Handle unknown error type
+      if (error instanceof Error) {
+        alert(`Failed to approve trade: ${error.message}`);
+      } else {
+        alert('Failed to approve trade. Please try again.');
+      }
     } finally {
       setApproving(null);
     }
@@ -206,7 +211,12 @@ export default function AdminTrades() {
       alert('✅ Trade rejected successfully!');
     } catch (error) {
       console.error('❌ Error rejecting trade:', error);
-      alert(`Failed to reject trade: ${error.message}`);
+      // ✅ Fix: Handle unknown error type
+      if (error instanceof Error) {
+        alert(`Failed to reject trade: ${error.message}`);
+      } else {
+        alert('Failed to reject trade. Please try again.');
+      }
     }
   };
 
