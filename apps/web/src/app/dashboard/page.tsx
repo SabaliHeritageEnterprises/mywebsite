@@ -326,10 +326,6 @@ function WithdrawTab() {
             <button type="submit" disabled={busy} className="btn-gold w-full py-3 disabled:opacity-50">
               {busy ? 'Submitting…' : 'Submit Withdrawal Request'}
             </button>
-
-            <p className="text-xs text-muted text-center mt-2">
-              ⚠️ Withdrawals require admin approval. Double-check the address before submitting.
-            </p>
           </form>
         )}
       </div>
