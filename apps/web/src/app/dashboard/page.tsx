@@ -215,7 +215,6 @@ function DepositTab() {
             );
           })}
         </div>
-        <p className="text-[11px] text-muted mt-5">Demo addresses for layout only. Once a deposit is confirmed by an administrator, your balance is credited and appears on your Portfolio automatically.</p>
       </div>
     </div>
   );
