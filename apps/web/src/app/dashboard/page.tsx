@@ -44,9 +44,9 @@ function PortfolioTab({ balance }: { balance: number }) {
 
 // Deposit Tab
 const DEPOSIT_ASSETS = [
-  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: '0xFD04E25D3e51f4C5179196f8EA52d0a5D3c7Ee79' },
+  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: 'TK3tTkm7VcyhLwZYqTXdUiNV2okDG41MTt' },
   { sym: 'BTC', name: 'Bitcoin', network: 'Bitcoin (native SegWit)', glyph: '₿', color: '#f7931a', address: 'bc1qgxkt5vfh5z2nccqscq00fcjeun26cckjgfuzendhvj483sgcupvskqk0ak' },
-  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0xFD04E25D3e51f4C5179196f8EA52d0a5D3c7Ee79' },
+  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
 ];
 
 function DepositTab() {
@@ -110,7 +110,6 @@ function DepositTab() {
     setLoading(true);
     setError('');
     try {
-      // ✅ Write a PENDING deposit doc — admin must approve before balance is credited.
       await addDoc(collection(db, 'deposits'), {
         uid: user.uid,
         email: user.email,
