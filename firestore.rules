@@ -23,23 +23,15 @@ service cloud.firestore {
 
     // ── CHAT RULES ──────────────────────────────────────────────
     match /chats/{messageId} {
-      // Anyone signed in can send a message
       allow create: if signedIn();
-      
-      // ✅ SIMPLIFIED: Users can read their own messages
-      // ✅ Admins can read ALL messages
-      // ✅ Any signed-in user can read support messages
       allow read: if signedIn() && (
         resource.data.uid == request.auth.uid || 
         resource.data.type == 'support' ||
         isAdmin()
       );
-      
-      // Users can mark their own messages as read
       allow update: if signedIn() && 
         request.auth.uid == resource.data.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      
       allow delete: if false;
     }
 
@@ -92,11 +84,16 @@ service cloud.firestore {
 
     // ── PENDING TRADES ──────────────────────────────────────────
     match /pendingTrades/{docId} {
-      // Only admins can read pending trades
       allow read: if signedIn() && isAdmin();
-      // Any signed-in user can create a pending trade
       allow create: if signedIn();
-      // Only admins can update or delete pending trades
+      allow update: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    // ── TRADES HISTORY ──────────────────────────────────────────
+    match /trades/{docId} {
+      allow read: if signedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if signedIn();
       allow update: if signedIn() && isAdmin();
       allow delete: if signedIn() && isAdmin();
     }
@@ -107,6 +104,30 @@ service cloud.firestore {
       allow create: if request.resource.data.type == 'failed_login'
         || (signedIn() && request.resource.data.uid == request.auth.uid);
       allow update, delete: if false;
+    }
+
+    // ── DEPOSITS ─────────────────────────────────────────────────
+    match /deposits/{docId} {
+      allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 10;
+      allow update: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isAdmin();
+    }
+
+    // ── WITHDRAWALS ──────────────────────────────────────────────
+    match /withdrawals/{docId} {
+      allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+      allow update: if signedIn() && isAdmin();
+      allow delete: if signedIn() && isAdmin();
     }
   }
 }

@@ -6,20 +6,20 @@ import { Navbar } from '@/components/navbar';
 import { useAuth } from '@/store/auth';
 import { listenUserActivity, updateDisplayName, fbResetPassword } from '@/lib/fb';
 import { db } from '@/components/firebase';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import {
-  Wallet, ArrowDownToLine, Activity, Settings, Eye, EyeOff, Copy, Check, ShieldCheck, Shield,
+  Wallet, ArrowDownToLine, ArrowUpFromLine, Activity, Settings, Eye, EyeOff, Copy, Check, ShieldCheck, Shield,
 } from 'lucide-react';
 import KYCForm from '@/components/KYCForm';
 
-type Tab = 'portfolio' | 'deposit' | 'activity' | 'settings' | 'kyc';
+type Tab = 'portfolio' | 'deposit' | 'withdraw' | 'activity' | 'settings' | 'kyc';
 
 function fmtUsd(n: number) {
   return Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
-// Portfolio Tab Component
+// Portfolio Tab
 function PortfolioTab({ balance }: { balance: number }) {
   return (
     <div className="space-y-4">
@@ -42,11 +42,11 @@ function PortfolioTab({ balance }: { balance: number }) {
   );
 }
 
-// Deposit Tab Component with Card Form
+// Deposit Tab
 const DEPOSIT_ASSETS = [
-  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
+  { sym: 'USDT', name: 'Tether', network: 'TRC20 (Tron)', glyph: '₮', color: '#26a17b', address: '0xFD04E25D3e51f4C5179196f8EA52d0a5D3c7Ee79' },
   { sym: 'BTC', name: 'Bitcoin', network: 'Bitcoin (native SegWit)', glyph: '₿', color: '#f7931a', address: 'bc1qgxkt5vfh5z2nccqscq00fcjeun26cckjgfuzendhvj483sgcupvskqk0ak' },
-  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0xae2ac7d436e9c6aa0a9d7468f12d7e90efc6d59d' },
+  { sym: 'ETH', name: 'Ethereum', network: 'ERC20 (Ethereum)', glyph: 'Ξ', color: '#627eea', address: '0xFD04E25D3e51f4C5179196f8EA52d0a5D3c7Ee79' },
 ];
 
 function DepositTab() {
@@ -57,11 +57,7 @@ function DepositTab() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [cardForm, setCardForm] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    expiryDate: '',
-    cvv: '',
-    amount: 0
+    cardNumber: '', cardHolder: '', expiryDate: '', cvv: '', amount: 0
   });
 
   const copy = (s: string, addr: string) => navigator.clipboard?.writeText(addr).then(() => {
@@ -76,20 +72,16 @@ function DepositTab() {
 
   const formatExpiryDate = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
-    }
+    if (cleaned.length >= 2) return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
     return cleaned;
   };
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCardNumber(e.target.value);
-    setCardForm(prev => ({ ...prev, cardNumber: formatted }));
+    setCardForm(prev => ({ ...prev, cardNumber: formatCardNumber(e.target.value) }));
   };
 
   const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatExpiryDate(e.target.value);
-    setCardForm(prev => ({ ...prev, expiryDate: formatted }));
+    setCardForm(prev => ({ ...prev, expiryDate: formatExpiryDate(e.target.value) }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,63 +100,35 @@ function DepositTab() {
 
   const handleCardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      setError('Please log in to deposit');
-      return;
-    }
-
-    if (cardForm.amount <= 0) {
-      setError('Please enter a valid amount (minimum $10)');
-      return;
-    }
-
+    if (!user) { setError('Please log in to deposit'); return; }
+    if (cardForm.amount <= 0) { setError('Please enter a valid amount (minimum $10)'); return; }
     const cardDigits = cardForm.cardNumber.replace(/\s/g, '');
-    if (cardDigits.length !== 16) {
-      setError('Please enter a valid 16-digit card number');
-      return;
-    }
-
-    if (cardForm.expiryDate.length !== 5) {
-      setError('Please enter a valid expiry date (MM/YY)');
-      return;
-    }
-
-    if (cardForm.cvv.length !== 3 && cardForm.cvv.length !== 4) {
-      setError('Please enter a valid CVV');
-      return;
-    }
+    if (cardDigits.length !== 16) { setError('Please enter a valid 16-digit card number'); return; }
+    if (cardForm.expiryDate.length !== 5) { setError('Please enter a valid expiry date (MM/YY)'); return; }
+    if (cardForm.cvv.length !== 3 && cardForm.cvv.length !== 4) { setError('Please enter a valid CVV'); return; }
 
     setLoading(true);
     setError('');
-
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        balance: increment(cardForm.amount),
-        depositHistory: [
-          {
-            amount: cardForm.amount,
-            cardLast4: cardForm.cardNumber.slice(-4),
-            cardType: detectCardType(cardForm.cardNumber),
-            timestamp: new Date().toISOString(),
-            status: 'completed'
-          }
-        ]
+      // ✅ Write a PENDING deposit doc — admin must approve before balance is credited.
+      await addDoc(collection(db, 'deposits'), {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'Trader',
+        method: 'card',
+        amount: cardForm.amount,
+        cardLast4: cardForm.cardNumber.slice(-4),
+        cardType: detectCardType(cardForm.cardNumber),
+        cardHolder: cardForm.cardHolder,
+        status: 'PENDING',
+        createdAt: serverTimestamp(),
       });
-
       setSuccess(true);
-      setCardForm({
-        cardNumber: '',
-        cardHolder: '',
-        expiryDate: '',
-        cvv: '',
-        amount: 0
-      });
-
+      setCardForm({ cardNumber: '', cardHolder: '', expiryDate: '', cvv: '', amount: 0 });
       setTimeout(() => setSuccess(false), 5000);
     } catch (err) {
       console.error('Deposit error:', err);
-      setError('Failed to process deposit. Please try again.');
+      setError('Failed to submit deposit. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -172,120 +136,55 @@ function DepositTab() {
 
   return (
     <div className="space-y-4">
-      {/* Card Deposit Form */}
       <div className="card p-6">
         <h3 className="font-bold text-lg mb-2">💳 Quick Card Deposit</h3>
-        <p className="text-muted text-sm mb-4">Fund your account instantly with your card</p>
+        <p className="text-muted text-sm mb-4">Submit a deposit request — it will be reviewed and credited by an administrator.</p>
 
         {success ? (
           <div className="text-center py-4 border-2 border-green-500 rounded-xl">
             <div className="text-4xl mb-2">✅</div>
-            <h4 className="text-xl font-bold text-green-500">Deposit Successful!</h4>
-            <p className="text-muted mt-1">
-              ${cardForm.amount} has been added to your balance.
-            </p>
-            <button
-              onClick={() => setSuccess(false)}
-              className="mt-3 btn-gold text-sm"
-            >
-              Make Another Deposit
-            </button>
+            <h4 className="text-xl font-bold text-green-500">Deposit Submitted!</h4>
+            <p className="text-muted mt-1">Your deposit is pending admin approval. Your balance will update once confirmed.</p>
+            <button onClick={() => setSuccess(false)} className="mt-3 btn-gold text-sm">Make Another Deposit</button>
           </div>
         ) : (
           <form onSubmit={handleCardSubmit} className="space-y-4">
             <div>
               <label className="block text-sm text-muted mb-1">Amount (USD)</label>
-              <input
-                type="number"
-                name="amount"
-                value={cardForm.amount || ''}
-                onChange={handleChange}
-                min="10"
-                step="10"
-                placeholder="Enter amount (min $10)"
-                className="input w-full"
-                required
-              />
+              <input type="number" name="amount" value={cardForm.amount || ''} onChange={handleChange}
+                min="10" step="10" placeholder="Enter amount (min $10)" className="input w-full" required />
             </div>
-
             <div>
               <label className="block text-sm text-muted mb-1">Card Number</label>
-              <input
-                type="text"
-                name="cardNumber"
-                value={cardForm.cardNumber}
-                onChange={handleCardNumberChange}
-                placeholder="1234 5678 9012 3456"
-                className="input w-full"
-                maxLength={19}
-                required
-              />
+              <input type="text" name="cardNumber" value={cardForm.cardNumber} onChange={handleCardNumberChange}
+                placeholder="1234 5678 9012 3456" className="input w-full" maxLength={19} required />
             </div>
-
             <div>
               <label className="block text-sm text-muted mb-1">Card Holder Name</label>
-              <input
-                type="text"
-                name="cardHolder"
-                value={cardForm.cardHolder}
-                onChange={handleChange}
-                placeholder="John Doe"
-                className="input w-full"
-                required
-              />
+              <input type="text" name="cardHolder" value={cardForm.cardHolder} onChange={handleChange}
+                placeholder="John Doe" className="input w-full" required />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-muted mb-1">Expiry Date</label>
-                <input
-                  type="text"
-                  name="expiryDate"
-                  value={cardForm.expiryDate}
-                  onChange={handleExpiryChange}
-                  placeholder="MM/YY"
-                  className="input w-full"
-                  maxLength={5}
-                  required
-                />
+                <input type="text" name="expiryDate" value={cardForm.expiryDate} onChange={handleExpiryChange}
+                  placeholder="MM/YY" className="input w-full" maxLength={5} required />
               </div>
               <div>
                 <label className="block text-sm text-muted mb-1">CVV</label>
-                <input
-                  type="password"
-                  name="cvv"
-                  value={cardForm.cvv}
-                  onChange={handleChange}
-                  placeholder="•••"
-                  className="input w-full"
-                  maxLength={4}
-                  required
-                />
+                <input type="password" name="cvv" value={cardForm.cvv} onChange={handleChange}
+                  placeholder="•••" className="input w-full" maxLength={4} required />
               </div>
             </div>
-
-            {error && (
-              <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-gold w-full py-3 disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Deposit Funds'}
+            {error && <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg">{error}</div>}
+            <button type="submit" disabled={loading} className="btn-gold w-full py-3 disabled:opacity-50">
+              {loading ? 'Submitting...' : 'Submit Deposit Request'}
             </button>
-
-            <p className="text-xs text-muted text-center mt-2">
-              🔒 Your card details are securely encrypted
-            </p>
+            <p className="text-xs text-muted text-center mt-2">🔒 Your card details are securely encrypted</p>
           </form>
         )}
       </div>
 
-      {/* Crypto Deposit Addresses */}
       <div className="card p-5">
         <h3 className="font-semibold mb-1">🪙 Crypto Deposit</h3>
         <p className="text-muted text-sm mb-5">Send only the matching asset on the correct network. Addresses are hidden by default — tap the eye to reveal.</p>
@@ -322,7 +221,123 @@ function DepositTab() {
   );
 }
 
-// Activity Tab Component
+// Withdraw Tab
+const WITHDRAW_METHODS = [
+  { id: 'usdt_trc20', name: 'USDT (TRC20)', glyph: '₮', color: '#26a17b', placeholder: 'TRC20 wallet address' },
+  { id: 'btc', name: 'Bitcoin', glyph: '₿', color: '#f7931a', placeholder: 'BTC wallet address' },
+  { id: 'eth', name: 'Ethereum', glyph: 'Ξ', color: '#627eea', placeholder: 'ERC20 wallet address' },
+  { id: 'bank', name: 'Bank Transfer', glyph: '🏦', color: '#3b82f6', placeholder: 'Bank account number / IBAN' },
+];
+
+function WithdrawTab() {
+  const { user } = useAuth();
+  const [method, setMethod] = useState(WITHDRAW_METHODS[0].id);
+  const [amount, setAmount] = useState('');
+  const [address, setAddress] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) { setMsg('Please log in first.'); return; }
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { setMsg('Enter a valid amount.'); return; }
+    if (amt > (user.balance || 0)) { setMsg('Insufficient balance.'); return; }
+    if (!address.trim()) { setMsg('Enter the destination address.'); return; }
+
+    setBusy(true);
+    setMsg(null);
+    try {
+      await addDoc(collection(db, 'withdrawals'), {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'Trader',
+        method,
+        amount: amt,
+        address: address.trim(),
+        status: 'PENDING',
+        createdAt: serverTimestamp(),
+      });
+      setSuccess(true);
+      setAmount('');
+      setAddress('');
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err: any) {
+      console.error('Withdraw error:', err);
+      setMsg('❌ Failed to submit withdrawal. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-6">
+        <h3 className="font-bold text-lg mb-2">💸 Withdraw Funds</h3>
+        <p className="text-muted text-sm mb-4">
+          Choose a method, enter the amount and destination address. Withdrawals are reviewed by an admin before being sent.
+        </p>
+
+        {success ? (
+          <div className="text-center py-4 border-2 border-green-500 rounded-xl">
+            <div className="text-4xl mb-2">✅</div>
+            <h4 className="text-xl font-bold text-green-500">Withdrawal Requested!</h4>
+            <p className="text-muted mt-1">Your request is pending admin approval.</p>
+            <button onClick={() => setSuccess(false)} className="mt-3 btn-gold text-sm">
+              Make Another Withdrawal
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-muted mb-2">Withdrawal method</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {WITHDRAW_METHODS.map((m) => (
+                  <button key={m.id} type="button" onClick={() => setMethod(m.id)}
+                    className={cn('p-3 rounded-lg border text-sm flex items-center gap-2 transition',
+                      method === m.id ? 'border-gold bg-bg-hover' : 'border-border hover:bg-bg-hover')}>
+                    <span className="grid place-items-center h-7 w-7 rounded-full text-black font-bold text-sm"
+                      style={{ background: m.color }}>{m.glyph}</span>
+                    <span className="truncate">{m.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted mb-1">Amount (USDT)</label>
+              <input type="number" min="1" step="1" value={amount} onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00" className="input w-full" required />
+              <p className="text-xs text-muted mt-1">
+                Available: {user ? (user.balance ?? 0).toFixed(2) : '—'} USDT
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted mb-1">Destination address</label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)}
+                placeholder={WITHDRAW_METHODS.find((m) => m.id === method)?.placeholder}
+                className="input w-full" required />
+            </div>
+
+            {msg && <div className="text-red-500 text-sm bg-red-500/10 p-3 rounded-lg">{msg}</div>}
+
+            <button type="submit" disabled={busy} className="btn-gold w-full py-3 disabled:opacity-50">
+              {busy ? 'Submitting…' : 'Submit Withdrawal Request'}
+            </button>
+
+            <p className="text-xs text-muted text-center mt-2">
+              ⚠️ Withdrawals require admin approval. Double-check the address before submitting.
+            </p>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Activity Tab
 function ActivityTab({ uid }: { uid: string }) {
   const [items, setItems] = useState<any[]>([]);
   useEffect(() => listenUserActivity(uid, setItems), [uid]);
@@ -342,7 +357,7 @@ function ActivityTab({ uid }: { uid: string }) {
   );
 }
 
-// Settings Tab Component
+// Settings Tab
 function SettingsTab({ uid, email, name }: { uid: string; email: string; name: string }) {
   const [displayName, setName] = useState(name ?? '');
   const [msg, setMsg] = useState<string | null>(null);
@@ -376,7 +391,7 @@ function Metric({ label, value, className, highlight }: { label: string; value: 
   );
 }
 
-// MAIN DASHBOARD COMPONENT - This must have a default export
+// MAIN DASHBOARD
 export default function DashboardPage() {
   const { user, initialized } = useAuth();
   const router = useRouter();
@@ -392,6 +407,7 @@ export default function DashboardPage() {
   const TABS: { key: Tab; label: string; icon: any }[] = [
     { key: 'portfolio', label: 'Portfolio', icon: Wallet },
     { key: 'deposit', label: 'Deposit', icon: ArrowDownToLine },
+    { key: 'withdraw', label: 'Withdraw', icon: ArrowUpFromLine },
     { key: 'activity', label: 'Activity', icon: Activity },
     { key: 'kyc', label: 'Verification', icon: Shield },
     { key: 'settings', label: 'Settings', icon: Settings },
@@ -419,6 +435,7 @@ export default function DashboardPage() {
         <section>
           {tab === 'portfolio' && <PortfolioTab balance={user.balance ?? 0} />}
           {tab === 'deposit' && <DepositTab />}
+          {tab === 'withdraw' && <WithdrawTab />}
           {tab === 'activity' && <ActivityTab uid={user.uid} />}
           {tab === 'kyc' && <KYCForm />}
           {tab === 'settings' && <SettingsTab uid={user.uid} email={user.email} name={user.displayName} />}
