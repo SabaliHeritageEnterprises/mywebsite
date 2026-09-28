@@ -26,6 +26,8 @@ interface ChatMessage {
   timestamp: any;
   read: boolean;
   type: 'user' | 'support';
+  replyToUid?: string;
+  replyToName?: string;
 }
 
 interface ChatContextType {
@@ -49,16 +51,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const unsubRefs = useRef<Array<() => void>>([]);
 
-  // Use your existing Firebase auth
+  // Load auth user
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      setUser(user);
-      if (user) {
-        const userData = await getUserDoc(user.uid);
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      setUser(u);
+      if (u) {
+        const userData = await getUserDoc(u.uid);
         setAppUser(userData);
-        console.log('👤 ChatProvider: User loaded:', user.uid, 'AppUser:', userData?.displayName);
       } else {
         setAppUser(null);
       }
@@ -66,123 +67,114 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Listen for messages in real-time from Firestore
+  // ✅ Listen to TWO queries: own messages + support replies addressed to me
   useEffect(() => {
     if (!user) {
-      console.log('🟡 ChatProvider: No user, clearing messages');
       setMessages([]);
       setUnreadCount(0);
       return;
     }
 
-    console.log('🟡 ChatProvider: Setting up listener for user:', user.uid);
+    console.log('🟡 ChatProvider: Setting up listeners for user:', user.uid);
 
-    // ✅ FIXED: Only query messages where uid matches the current user
-    const q = query(
+    // Bucket to hold docs from both queries, keyed by doc id (dedupes safely)
+    const store = new Map<string, ChatMessage>();
+
+    const publish = () => {
+      const list = Array.from(store.values()).sort((a, b) => {
+        const ta = a.timestamp?.toMillis?.() ?? 0;
+        const tb = b.timestamp?.toMillis?.() ?? 0;
+        return ta - tb;
+      });
+      setMessages(list);
+      const unread = list.filter((m) => m.type === 'support' && !m.read).length;
+      setUnreadCount(unread);
+      if (isOpen && unread > 0) {
+        markAsRead();
+      }
+    };
+
+    const handle = (snapshot: any, source: 'own' | 'reply') => {
+      snapshot.docChanges().forEach((change: any) => {
+        const id = change.doc.id;
+        if (change.type === 'removed') {
+          store.delete(id);
+        } else {
+          store.set(id, { id, ...(change.doc.data() as any) });
+        }
+      });
+      console.log(`📨 ${source} snapshot: size=${snapshot.size}, store=${store.size}`);
+      publish();
+    };
+
+    // Query 1 — messages I sent
+    const q1 = query(
       collection(db, 'chats'),
       where('uid', '==', user.uid),
       orderBy('timestamp', 'asc')
     );
 
-    const unsubscribe = onSnapshot(
-      q, 
-      (snapshot) => {
-        console.log('📨 ChatProvider: Snapshot received! Size:', snapshot.size);
-        const newMessages: ChatMessage[] = [];
-        let unread = 0;
-
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          const msg = { id: doc.id, ...data } as ChatMessage;
-          newMessages.push(msg);
-          console.log('📄 Message:', msg.text?.slice(0, 30), 'Type:', msg.type, 'UID:', msg.uid);
-
-          // Count unread support messages for this user
-          if (data.type === 'support' && data.uid === user.uid && !data.read) {
-            unread++;
-          }
-        });
-
-        console.log('📨 ChatProvider: Total messages:', newMessages.length);
-        setMessages(newMessages);
-        setUnreadCount(unread);
-
-        if (isOpen && unread > 0) {
-          markAsRead();
-        }
-      },
-      (error) => {
-        console.error('❌ ChatProvider: Error in snapshot listener:', error);
-        console.error('❌ Error code:', error.code);
-        console.error('❌ Error message:', error.message);
-      }
+    // Query 2 — support replies addressed to me
+    const q2 = query(
+      collection(db, 'chats'),
+      where('replyToUid', '==', user.uid),
+      orderBy('timestamp', 'asc')
     );
 
-    unsubscribeRef.current = unsubscribe;
+    const unsub1 = onSnapshot(q1, (s) => handle(s, 'own'), (err) => {
+      console.error('❌ own query error:', err.code, err.message);
+    });
+
+    const unsub2 = onSnapshot(q2, (s) => handle(s, 'reply'), (err) => {
+      console.error('❌ reply query error:', err.code, err.message);
+    });
+
+    unsubRefs.current = [unsub1, unsub2];
 
     return () => {
-      console.log('🧹 ChatProvider: Cleaning up listener');
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
+      unsubRefs.current.forEach((fn) => fn());
+      unsubRefs.current = [];
     };
   }, [user, isOpen]);
 
   const sendMessage = async (text: string) => {
-    if (!user) {
-      console.error('❌ ChatProvider: No user logged in');
-      throw new Error('Please log in to chat');
-    }
-    if (!text.trim()) {
-      console.error('❌ ChatProvider: Empty message');
-      return;
-    }
+    if (!user) throw new Error('Please log in to chat');
+    if (!text.trim()) return;
 
     const displayName = appUser?.displayName || user.displayName || user.email?.split('@')[0] || 'Trader';
-    console.log('📤 ChatProvider: Sending message:', { uid: user.uid, displayName, text: text.trim() });
 
-    try {
-      const docRef = await addDoc(collection(db, 'chats'), {
-        uid: user.uid,
-        email: user.email || 'anonymous',
-        displayName: displayName,
-        text: text.trim(),
-        timestamp: serverTimestamp(),
-        read: false,
-        type: 'user'
-      });
-      console.log('✅ ChatProvider: Message sent with ID:', docRef.id);
-    } catch (error) {
-      console.error('❌ ChatProvider: Error sending message:', error);
-      throw error;
-    }
+    await addDoc(collection(db, 'chats'), {
+      uid: user.uid,
+      email: user.email || 'anonymous',
+      displayName,
+      text: text.trim(),
+      timestamp: serverTimestamp(),
+      read: false,
+      type: 'user',
+    });
   };
 
   const markAsRead = async () => {
     if (!user) return;
-
     try {
+      // Mark support replies addressed to me as read
       const q = query(
         collection(db, 'chats'),
-        where('uid', '==', user.uid),
+        where('replyToUid', '==', user.uid),
         where('type', '==', 'support'),
         where('read', '==', false)
       );
-
-      const snapshot = await getDocs(q);
-      const updates = snapshot.docs.map((docSnap) =>
-        updateDoc(doc(db, 'chats', docSnap.id), { read: true })
+      const snap = await getDocs(q);
+      await Promise.all(
+        snap.docs.map((d) => updateDoc(doc(db, 'chats', d.id), { read: true }))
       );
-
-      await Promise.all(updates);
       setUnreadCount(0);
-      console.log('✅ ChatProvider: Marked messages as read');
-    } catch (error) {
-      console.error('❌ ChatProvider: Error marking messages as read:', error);
+    } catch (err) {
+      console.error('❌ markAsRead error:', err);
     }
   };
 
-  const toggleChat = () => setIsOpen(!isOpen);
+  const toggleChat = () => setIsOpen((v) => !v);
   const openChat = () => setIsOpen(true);
   const closeChat = () => setIsOpen(false);
 
@@ -207,9 +199,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 }
 
 export function useChat() {
-  const context = useContext(ChatContext);
-  if (context === undefined) {
-    throw new Error('useChat must be used within a ChatProvider');
-  }
-  return context;
+  const ctx = useContext(ChatContext);
+  if (!ctx) throw new Error('useChat must be used within a ChatProvider');
+  return ctx;
 }
